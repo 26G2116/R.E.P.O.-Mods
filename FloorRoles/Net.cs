@@ -106,6 +106,25 @@ namespace FloorRoles
             }
         }
 
+        /// <summary>
+        /// アイテムの電池の記録を、全員の PC から消す。ホストだけで消すと、参加者の PC に古い電池の残りが残り、
+        /// 同じ名前で次に買ったアイテムに引き継がれる(ゲームの同期は「ホストにない記録」を参加者に送らないため)。
+        /// 電池 100 はゲームでは「記録なし」と同じ扱いで、送ると全員の PC で記録が消える。
+        /// </summary>
+        internal static void ForgetBattery(string instanceName)
+        {
+            var stats = StatsManager.instance;
+            if (!stats || string.IsNullOrEmpty(instanceName))
+            {
+                return;
+            }
+            if (PunManager.instance)
+            {
+                PunManager.instance.UpdateStat("itemStatBattery", instanceName, 100);
+            }
+            stats.itemStatBattery.Remove(instanceName);
+        }
+
         /// <summary>今のアップグレードの数。</summary>
         internal static int UpgradeLevel(string steamID, string upgradeName)
         {
@@ -537,7 +556,7 @@ namespace FloorRoles
                         continue;
                     }
                     stats.item.Remove(name);
-                    stats.itemStatBattery.Remove(name);
+                    Net.ForgetBattery(name);
                 }
             }
             Entries.Clear();

@@ -375,6 +375,8 @@ namespace FloorRoles
                     StatsManager.instance.item.ContainsKey(attributes.instanceName))
                 {
                     StatsManager.instance.ItemRemove(attributes.instanceName);
+                    // 参加者の PC の電池の記録も消す(次に買った同じ武器に引き継がれないように)
+                    Net.ForgetBattery(attributes.instanceName);
                 }
                 if (target.impactDetector)
                 {

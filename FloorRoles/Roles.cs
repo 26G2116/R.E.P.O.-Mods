@@ -534,7 +534,7 @@ namespace FloorRoles
                         continue;
                     }
                     stats.item.Remove(name);
-                    stats.itemStatBattery.Remove(name);
+                    Net.ForgetBattery(name);
                     int hash = name.GetHashCode();
                     RemoveSpot(stats.playerInventorySpot1, hash);
                     RemoveSpot(stats.playerInventorySpot2, hash);
@@ -568,7 +568,7 @@ namespace FloorRoles
                     return true;
                 }
                 __instance.item.Remove(instanceName);
-                __instance.itemStatBattery.Remove(instanceName);
+                Net.ForgetBattery(instanceName);
                 return false;
             }
         }
