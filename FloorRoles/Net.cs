@@ -137,9 +137,15 @@ namespace FloorRoles
             return dict.GetValueOrDefault(steamID, 0);
         }
 
-        /// <summary>Resources のパスで全員の画面に出す。</summary>
-        internal static GameObject SpawnRoomObject(string resourcePath, GameObject prefab, Vector3 position, Quaternion rotation)
+        /// <summary>
+        /// Resources のパスで全員の画面に出す。safe = true なら、壁・床・天井にめり込まない位置に少しずらしてから出す。
+        /// </summary>
+        internal static GameObject SpawnRoomObject(string resourcePath, GameObject prefab, Vector3 position, Quaternion rotation, bool safe = true)
         {
+            if (safe && prefab)
+            {
+                position = SafeSpot(prefab, position);
+            }
             if (SemiFunc.IsMultiplayer())
             {
                 return PhotonNetwork.InstantiateRoomObject(resourcePath, position, rotation, 0, null);
@@ -402,7 +408,7 @@ namespace FloorRoles
             {
                 return;
             }
-            var spawned = SpawnRoomObject(item.prefab.ResourcePath, item.prefab.Prefab, position, UnityEngine.Random.rotation);
+            var spawned = SpawnRoomObject(item.prefab.ResourcePath, item.prefab.Prefab, position, Quaternion.identity);
             var grenade = spawned ? spawned.GetComponent<ItemGrenade>() : null;
             if (!grenade)
             {
@@ -473,6 +479,132 @@ namespace FloorRoles
         internal static bool Alive(PlayerAvatar player)
         {
             return player && !player.deadSet && !player.isDisabled;
+        }
+
+        // ---- めり込まない位置 ----
+
+        /// <summary>壁・床・天井・扉(動かない物)。ほかの貴重品やアイテムは押しのけ合うので数えない。</summary>
+        private static int BlockMask => LayerMask.GetMask("Default", "StaticGrabObject", "PhysGrabObjectHinge");
+
+        private static readonly Dictionary<GameObject, Bounds> PrefabBounds = new Dictionary<GameObject, Bounds>();
+
+        /// <summary>
+        /// プレハブの当たり判定の大きさ(出す位置からの相対)。アイテムは、出す位置にアイテムの置き場所(ItemVolume)が来るので、そこからの相対にする。
+        /// </summary>
+        private static Bounds LocalBounds(GameObject prefab)
+        {
+            if (PrefabBounds.TryGetValue(prefab, out var cached))
+            {
+                return cached;
+            }
+            var toLocal = prefab.transform.worldToLocalMatrix;
+            bool any = false;
+            var bounds = new Bounds();
+            foreach (var collider in prefab.GetComponentsInChildren<Collider>(true))
+            {
+                if (!collider || collider.isTrigger)
+                {
+                    continue;
+                }
+                Bounds local;
+                switch (collider)
+                {
+                    case BoxCollider box:
+                        local = new Bounds(box.center, box.size);
+                        break;
+                    case SphereCollider sphere:
+                        local = new Bounds(sphere.center, Vector3.one * sphere.radius * 2f);
+                        break;
+                    case CapsuleCollider capsule:
+                        var size = Vector3.one * capsule.radius * 2f;
+                        size[capsule.direction] = Mathf.Max(capsule.height, capsule.radius * 2f);
+                        local = new Bounds(capsule.center, size);
+                        break;
+                    case MeshCollider mesh when mesh.sharedMesh:
+                        local = mesh.sharedMesh.bounds;
+                        break;
+                    default:
+                        continue;
+                }
+                var matrix = toLocal * collider.transform.localToWorldMatrix;
+                for (int i = 0; i < 8; i++)
+                {
+                    var corner = local.center + Vector3.Scale(local.extents,
+                        new Vector3((i & 1) == 0 ? -1f : 1f, (i & 2) == 0 ? -1f : 1f, (i & 4) == 0 ? -1f : 1f));
+                    var point = matrix.MultiplyPoint3x4(corner);
+                    if (!any)
+                    {
+                        bounds = new Bounds(point, Vector3.zero);
+                        any = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(point);
+                    }
+                }
+            }
+            if (!any)
+            {
+                bounds = new Bounds(Vector3.zero, Vector3.one * 0.3f);
+            }
+            var volume = prefab.GetComponentInChildren<ItemVolume>(true);
+            if (volume && prefab.GetComponent<ItemAttributes>())
+            {
+                bounds.center -= toLocal.MultiplyPoint3x4(volume.transform.position);
+            }
+            PrefabBounds[prefab] = bounds;
+            return bounds;
+        }
+
+        /// <summary>
+        /// プレハブがめり込まない位置を、desired の近くから探す(壁の向こうは選ばない。床にめり込むなら少し持ち上げる)。
+        /// 横に回して出しても収まるように確かめる(縦に回る物は回さずに出す)。見つからなければ desired のまま。
+        /// </summary>
+        internal static Vector3 SafeSpot(GameObject prefab, Vector3 desired)
+        {
+            try
+            {
+                var bounds = LocalBounds(prefab);
+                // 横向きにどう回っても収まるように、横の大きさは対角線の長さにする(金袋は横に回して出す)
+                float side = new Vector2(bounds.extents.x, bounds.extents.z).magnitude;
+                var half = new Vector3(side, bounds.extents.y, side) + Vector3.one * 0.03f;
+                var offset = new Vector3(0f, bounds.center.y, 0f);
+                int mask = BlockMask;
+                var origin = desired + offset;
+                float[] lifts = { 0f, 0.1f, 0.25f, 0.5f };
+                for (int ring = 0; ring <= 10; ring++)
+                {
+                    float radius = ring * 0.2f;
+                    int steps = ring == 0 ? 1 : 12;
+                    for (int step = 0; step < steps; step++)
+                    {
+                        float angle = step * Mathf.PI * 2f / steps;
+                        var flat = new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+                        foreach (float lift in lifts)
+                        {
+                            var center = origin + flat + Vector3.up * lift;
+                            if (ring > 0 || lift > 0f)
+                            {
+                                // 両向きに確かめる(出す位置が壁の中だと、片向きでは壁を見落とす)
+                                if (Physics.Linecast(origin, center, mask, QueryTriggerInteraction.Ignore) ||
+                                    Physics.Linecast(center, origin, mask, QueryTriggerInteraction.Ignore))
+                                {
+                                    continue; // 壁・床の向こう
+                                }
+                            }
+                            if (!Physics.CheckBox(center, half, Quaternion.identity, mask, QueryTriggerInteraction.Ignore))
+                            {
+                                return center - offset;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"めり込まない位置を探せませんでした: {e.Message}");
+            }
+            return desired;
         }
 
         /// <summary>まわりの物にめり込まない、床の上の位置を探す。</summary>

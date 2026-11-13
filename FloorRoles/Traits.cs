@@ -295,6 +295,8 @@ namespace FloorRoles
             bool fumble = !critical && value >= FumbleMin.Value;
             bool success = !critical && !fumble && value <= SuccessMax.Value;
             Plugin.Verbose($"役職特性のダイス: {Net.Name(player)} {ritual.Kind} = {value}");
+            // 結果は数字と critical / fumble だけしゃべる
+            Net.Speak(player, critical ? $"{value}! critical!" : fumble ? $"{value}! fumble!" : $"{value}!");
             switch (ritual.Kind)
             {
                 case Kind.CarrierValuable:
@@ -321,7 +323,6 @@ namespace FloorRoles
             if (critical)
             {
                 int dollars = Mathf.Max(1, Mathf.RoundToInt(current * (1f + CarrierCriticalBonus.Value / 100f)));
-                Net.Speak(player, $"ダイス{value} クリティカル！ ${dollars:N0}の金袋に変換！");
                 DestroyQuietly(target);
                 var bag = Net.SpawnMoneyBagDollars(center, dollars, false);
                 if (bag)
@@ -335,19 +336,14 @@ namespace FloorRoles
             }
             else if (fumble)
             {
-                Net.Speak(player, $"ダイス{value} ファンブル！");
                 Runner.Instance.StartCoroutine(ExplodeLater(target, 1f, Phase.Generation));
             }
             else if (success)
             {
-                Net.Speak(player, $"ダイス{value}！ ${current:N0}の金袋に変換！");
                 DestroyQuietly(target);
                 Net.SpawnMoneyBagDollars(center, Mathf.Max(1, current), true);
             }
-            else
-            {
-                Net.Speak(player, $"ダイス{value}。何も起きない");
-            }
+            // それ以外は何も起きない
         }
 
         // ---- 戦闘: 電池切れの武器 ----
@@ -356,7 +352,6 @@ namespace FloorRoles
         {
             var battery = target.GetComponent<ItemBattery>();
             var attributes = target.GetComponent<ItemAttributes>();
-            string name = WeaponName(target);
             if (!battery)
             {
                 return;
@@ -364,12 +359,10 @@ namespace FloorRoles
             float step = BatteryStep.Value;
             if (critical)
             {
-                Net.Speak(player, $"ダイス{value} クリティカル！ 電池が全回復！");
                 battery.SetBatteryLife(100);
             }
             else if (fumble)
             {
-                Net.Speak(player, $"ダイス{value} ファンブル！ {name}が壊れた…");
                 Charged.Remove(target);
                 if (attributes && StatsManager.instance && !string.IsNullOrEmpty(attributes.instanceName) &&
                     StatsManager.instance.item.ContainsKey(attributes.instanceName))
@@ -389,12 +382,10 @@ namespace FloorRoles
             }
             else if (success)
             {
-                Net.Speak(player, $"ダイス{value}！ 電池が回復！");
                 battery.SetBatteryLife(Mathf.RoundToInt(Mathf.Min(100f, battery.batteryLife + step)));
             }
             else
             {
-                Net.Speak(player, battery.batteryLife > 0f ? $"ダイス{value}。電池が減った…" : $"ダイス{value}。電池は空のまま…");
                 battery.SetBatteryLife(Mathf.RoundToInt(Mathf.Max(0f, battery.batteryLife - step)));
             }
         }
@@ -410,24 +401,20 @@ namespace FloorRoles
             if (critical)
             {
                 int dollars = Mathf.Clamp(original * CubeMultiplier.Value, 1, CubeCap.Value);
-                Net.Speak(player, $"ダイス{value} クリティカル！ ${dollars:N0}の覚醒キューブに！");
                 DestroyQuietly(target);
                 Net.SpawnAwakenedCube(center + Vector3.up * 0.3f, dollars);
             }
             else if (fumble)
             {
-                Net.Speak(player, $"ダイス{value} ファンブル！");
                 Runner.Instance.StartCoroutine(GamblerFumble(player, Phase.Generation));
             }
             else if (success)
             {
                 int dollars = Mathf.Max(1, Mathf.RoundToInt(current * 0.5f));
-                Net.Speak(player, $"ダイス{value}！ ${dollars:N0}の金袋ゲット！");
                 Net.SpawnMoneyBagDollars(Net.FreeSpot(center, 0.5f, 1.2f), dollars, true);
             }
             else
             {
-                Net.Speak(player, $"ダイス{value}。ハズレ！");
                 Runner.Instance.StartCoroutine(ExplodeLater(target, 1f, Phase.Generation));
             }
         }
@@ -447,7 +434,7 @@ namespace FloorRoles
                 {
                     yield break;
                 }
-                Net.SpawnActiveGrenade(position + Random.insideUnitSphere * 0.3f);
+                Net.SpawnActiveGrenade(position + new Vector3(Random.Range(-0.1f, 0.1f), 0f, Random.Range(-0.1f, 0.1f)));
                 yield return new WaitForSeconds(0.1f);
             }
         }

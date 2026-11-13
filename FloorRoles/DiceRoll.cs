@@ -141,7 +141,7 @@ namespace FloorRoles
                 else if (value <= 50)
                 {
                     int dollars = Traits.GamblerBag.Value;
-                    Net.Speak(player, $"{value}! ${dollars:N0}ゲット！");
+                    Net.Speak(player, $"{value}!");
                     if (dollars > 0)
                     {
                         var center = player.transform.position + Vector3.up * 1f;
@@ -151,7 +151,7 @@ namespace FloorRoles
                 else
                 {
                     int damage = Mathf.CeilToInt(value / 2f);
-                    Net.Speak(player, $"{value}! {damage}ダメージ！");
+                    Net.Speak(player, $"{value}!");
                     yield return new WaitForSeconds(0.5f);
                     if (Net.Alive(player) && generation == Phase.Generation)
                     {

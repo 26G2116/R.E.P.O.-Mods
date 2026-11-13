@@ -102,7 +102,7 @@ namespace FloorRoles
                     var spawn = new PunManager.ItemSpawn
                     {
                         prefab = leftover[i].prefab,
-                        position = Net.FreeSpot(anchor, 0.35f, 1.0f, 0.15f),
+                        position = Net.SafeSpot(leftover[i].prefab.Prefab, Net.FreeSpot(anchor, 0.35f, 1.0f, 0.15f)),
                         rotation = Quaternion.identity,
                     };
                     if (_spawns != null)
