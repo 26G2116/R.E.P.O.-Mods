@@ -1,7 +1,7 @@
 # MOD の日本語化(XUnity.AutoTranslator 用)
 
 「Repo MODs」プロファイルの MOD の英語を、XUnity.AutoTranslator で日本語に置き換えるための翻訳表。
-ゲーム本体は公式の日本語(ゲームの設定で言語を日本語にする)、SharePermissions は MOD 自身の日本語を使う。
+ゲーム本体は公式の日本語(ゲームの設定で言語を日本語にする)、SharePermissions と DarkSpider-AdminMenu は MOD 自身の日本語を使う。
 
 ## 入れ方
 1. Gale で `RTLC-XUnity_AutoTranslator` を入れる
@@ -36,3 +36,7 @@
 - MOD 名(REPOConfig の MOD 一覧)… 元の名前のほうが探しやすいため
 - キーの名前(F6 など)、ping の表示(`[H] 45ms`)
 - アイテム名など、MOD のアセット(バンドル)の中にある文 … 遊んでみて英語が残っていたら追加する
+- ステータス名(Health・Stamina など)… 英語名のほうが分かりやすいため
+- RepoAdminMenu のアイテム・貴重品・敵・マップの名前 … ゲーム内部の英語名がそのまま並ぶため
+- DarkSpider-AdminMenu のメニューの中、SharePermissions … MOD 自身が日本語に対応している
+- 文字のない MOD(UnlimitedOrbs・JapaneseTextInput・TF2Minigun)、自作の MOD(FloorRoles など。最初から日本語)

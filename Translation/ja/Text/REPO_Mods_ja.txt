@@ -32,6 +32,8 @@ Effects=演出
 Default=標準
 Custom=カスタム
 Off=オフ
+On=オン
+Close=閉じる
 Debug=デバッグ
 Verbose=詳細
 
@@ -125,44 +127,6 @@ Green threshold=緑で表示する上限
 Yellow threshold=黄色で表示する上限
 Orange threshold=オレンジで表示する上限
 
-//==================== BanEnforcer(永久 BAN、F6 で開く) ====================
-BAN LIST=BAN リスト
-<size\=20><b>BAN LIST</b></size>=<size\=20><b>BAN リスト</b></size>
-Ban enforcer opened.=BAN 管理を開きました。
-You are the host. Bans enforce immediately.=あなたはホストです。BAN はすぐに実行されます。
-You are not the host. Bans are stored and enforce when you host.=あなたはホストではありません。BAN は保存され、あなたがホストのときに実行されます。
-Reason:=理由:
-Ban Steam ID=Steam ID で BAN
-Dump Debug=デバッグ情報を出力
-Close=閉じる
-In-Room Players=部屋にいるプレイヤー
-<b>In-Room Players</b>=<b>部屋にいるプレイヤー</b>
-Ban=BAN
-Banned=BAN 済み
-<b>Banned</b>=<b>BAN 済み</b>
-Not in a room.=部屋に入っていません。
-Clear All=すべて解除
-Cleared all local bans.=保存していた BAN をすべて解除しました。
-Unknown=不明
-Unban=解除
-Steam Lobby=Steam ロビー
-<b>Steam Lobby</b>=<b>Steam ロビー</b>
-Enter a valid Steam64 ID.=正しい Steam64 ID を入力してください。
-Ready to enforce Steam bans.=Steam の BAN を実行する準備ができています。
-Manual ban=手動で BAN
-Banned from Steam lobby list=Steam ロビーの一覧から BAN
-Banned from in-room player list=部屋のプレイヤー一覧から BAN
-Toggle Key=開くキー
-Debug Dump Key=デバッグ出力キー
-Verbose Logs=詳しいログ
-Log Local Ids=自分の ID をログに出す
-r:"^(.+)  \(no steam id\)$"=$1  (Steam ID なし)
-r:"^Unknown  \((\d+)\)$"=不明  ($1)
-r:"^Unbanned (\d+)\.$"=$1 の BAN を解除しました。
-r:"^Banned Steam64 (\d+)\.$"=Steam64 $1 を BAN しました。
-r:"^Banned (.+) \((\d+)\)\.$"=$1 ($2) を BAN しました。
-r:"^Banned (.+)\.$"=$1 を BAN しました。
-
 //==================== Hunter Enhancements(ハンターの強化) ====================
 A. General=A. 全般
 Enable Minigun Mode=ミニガンモードを有効にする
@@ -237,6 +201,7 @@ r:"^I can't be revived yet — not enough money\. Cost: \$(\d+)k, available: \$(
 r:"^I can't be revived yet, (\d+) seconds left$"=まだ蘇生できません。あと $1 秒
 
 //==================== SharedUpgradesPlus(アップグレードの共有) ====================
+// ステータス名(Health など)は英語のまま(英語名のほうが分かりやすいため)
 Enable Shared Upgrades=アップグレードの共有を有効にする
 Shared Upgrades Chance=共有される確率
 Shared Upgrades Chance Mode=確率の判定方法
@@ -252,32 +217,19 @@ Enable Share Notification=共有されたときに演出を出す
 Log Level=ログの詳しさ
 Vanilla Upgrades=ゲーム本体のアップグレード
 Modded Upgrades=MOD のアップグレード
-Health=体力
-Health Share Limit=体力の共有上限
-Stamina=スタミナ
-Stamina Share Limit=スタミナの共有上限
-Extra Jump=追加ジャンプ
-Extra Jump Share Limit=追加ジャンプの共有上限
-Launch=タンブル発射
-Launch Share Limit=タンブル発射の共有上限
-Tumble Climb=タンブル登り
-Tumble Climb Share Limit=タンブル登りの共有上限
-Tumble Wings=タンブルの翼
-Tumble Wings Share Limit=タンブルの翼の共有上限
-Speed=スプリント速度
-Speed Share Limit=スプリント速度の共有上限
-Crouch Rest=しゃがみ回復
-Crouch Rest Share Limit=しゃがみ回復の共有上限
-Strength=つかむ力
-Strength Share Limit=つかむ力の共有上限
-Range=つかむ距離
-Range Share Limit=つかむ距離の共有上限
-Throw=投げる力
-Throw Share Limit=投げる力の共有上限
-Death Head Battery=死亡時の頭のバッテリー
-Death Head Battery Share Limit=死亡時の頭のバッテリーの共有上限
-Map Player Count=マップの人数表示
-Map Player Count Share Limit=マップの人数表示の共有上限
+Health Share Limit=Health の共有上限
+Stamina Share Limit=Stamina の共有上限
+Extra Jump Share Limit=Extra Jump の共有上限
+Launch Share Limit=Launch の共有上限
+Tumble Climb Share Limit=Tumble Climb の共有上限
+Tumble Wings Share Limit=Tumble Wings の共有上限
+Speed Share Limit=Speed の共有上限
+Crouch Rest Share Limit=Crouch Rest の共有上限
+Strength Share Limit=Strength の共有上限
+Range Share Limit=Range の共有上限
+Throw Share Limit=Throw の共有上限
+Death Head Battery Share Limit=Death Head Battery の共有上限
+Map Player Count Share Limit=Map Player Count の共有上限
 
 //==================== LateJoinNow(途中参加) ====================
 Mod Info=MOD 情報
@@ -319,3 +271,129 @@ r:"^(.+): Queued$"=$1: 順番待ち
 r:"^(.+): Loading$"=$1: 読み込み中
 r:"^(.+): Late Joined \(Optimized\)$"=$1: 途中参加しました(最適化)
 r:"^(.+): Late Joined$"=$1: 途中参加しました
+
+//==================== REPOLib(MOD 用ライブラリ) ====================
+Extended Logging=詳しいログ
+Developer Mode=開発者モード
+Vanilla Developer Mode=ゲーム本体の開発者モード
+
+//==================== RepoAdminMenu(管理メニュー、チャットで !menu) ====================
+// ステータス・アイテム・貴重品・敵・マップの名前は英語のまま
+Enable Commands=チャットコマンドを有効にする
+Enable Hotkey=ホットキーを有効にする
+Menu Hotkey=メニューを開くキー
+Max Upgrade=アップグレードの上限
+Reset Settings On Lobby Creation=ロビーを作るたびに設定を戻す
+Close Menu On Spawning=出現させたらメニューを閉じる
+R.E.P.O. Admin Menu=R.E.P.O. 管理メニュー
+← Back=← 戻る
+Players=プレイヤー
+Spawn=出現
+Map=マップ
+Credits=クレジット
+Report a Bug=不具合を報告
+R.A.M. - Players=R.A.M. - プレイヤー
+God Mode=無敵
+No Death=死なない
+No Target=狙われない
+No Tumble=タンブルしない
+Infinite Stamina=スタミナ無限
+Force Tumble=強制タンブル
+Upgrades=アップグレード
+Heal=回復
+Kill=倒す
+Teleport To Player=プレイヤーの所へ移動
+Summon=呼び寄せる
+Return To Truck=トラックに戻す
+Give Crown=王冠を渡す
+Kick Player=キックする
+Ban Player=BAN する
+r:"^Kick: (.+)$"=キック: $1
+r:"^Ban: (.+)$"=BAN: $1
+r:"^R\.A\.M\. - (.+) - Upgrades$"=R.A.M. - $1 - アップグレード
+r:"^\(Mod\) (.+)$"=(MOD) $1
+R.A.M. - Spawn=R.A.M. - 出現
+Items=アイテム
+Valuables=貴重品
+Enemies=敵
+R.A.M. - Spawn - Items=R.A.M. - 出現 - アイテム
+R.A.M. - Spawn - Valuables=R.A.M. - 出現 - 貴重品
+R.A.M. - Spawn - Enemies=R.A.M. - 出現 - 敵
+Tiny=極小
+Small=小
+Medium=中
+Big=大
+Wide=横長
+Tall=縦長
+Very Tall=とても縦長
+R.A.M. - Tiny Valuables=R.A.M. - 極小の貴重品
+R.A.M. - Small Valuables=R.A.M. - 小の貴重品
+R.A.M. - Medium Valuables=R.A.M. - 中の貴重品
+R.A.M. - Big Valuables=R.A.M. - 大の貴重品
+R.A.M. - Wide Valuables=R.A.M. - 横長の貴重品
+R.A.M. - Tall Valuables=R.A.M. - 縦長の貴重品
+R.A.M. - Very Tall Valuables=R.A.M. - とても縦長の貴重品
+R.A.M. - Map Settings=R.A.M. - マップの設定
+Current Level=今のレベル
+Money=お金
+Map Selector=マップ選択
+Discover Extraction Point=納品所を見つける
+Complete Extraction Point=納品所を完了にする
+R.A.M. - Map Selector=R.A.M. - マップ選択
+Lobby=ロビー
+R.A.M. - Settings=R.A.M. - 設定
+Infinite Money=お金無限
+No Break=貴重品が壊れない
+No Battery/Ammo Drain=電池・弾が減らない
+No Traps=罠を動かさない
+Weak Enemies=敵を弱くする
+Deaf Enemies=敵が音を聞かない
+Blind Enemies=敵が目で見つけない
+Boom Hammer=爆発ハンマー
+Friendly Duck=アヒルが襲わない
+Upgrade In Shop=ショップでアップグレードを使う
+R.A.M. - Credits=R.A.M. - クレジット
+Repo Admin Menu by=Repo Admin Menu 作者
+Special thanks to:=協力:
+R.A.M. - Confirm=R.A.M. - 確認
+
+//==================== AdminMenu(DarkSpider、今は無効) ====================
+// メニューの中は MOD 自身が日本語に対応しているので、設定画面の項目だけ訳す
+Menu=メニュー
+Diagnostics=診断
+Localization=言語
+Close Menu On Spawn=出現させたらメニューを閉じる
+Max Upgrade Level=アップグレードの上限
+Menu Font Size=メニューの文字の大きさ
+Verbose Logging=詳しいログ
+Write Language Template=言語ファイルのひな形を書き出す
+
+//==================== LateJoinSimple(途中参加、今は無効) ====================
+// 設定の名前が中国語。XUnity が中国語の文にも効くかは未確認
+全局设置=全体設定
+传送到房主=参加したらホストの所へ移動
+协同模式=協調モード(両方に導入時の最適化)
+场景白名单=参加を許可する場面
+卡车阶段允许加入=トラックでの参加を許可
+商店阶段允许加入=ショップでの参加を許可
+关卡中允许加入=レベル中の参加を許可
+房间信息显示=部屋情報の表示
+显示房间类型=部屋の種類を表示
+显示房间名称=部屋の名前を表示
+显示HUD=HUD を表示
+HUD字号=HUD の文字の大きさ
+HUD透明度=HUD の不透明度
+每行显示人数=1 行に表示する人数
+调试=デバッグ
+详细调试日志=詳しいデバッグログ
+冲突检测弹窗=競合する MOD の警告
+虚空修复=奈落落ちなどの修正
+快捷栏修复=インベントリの修正
+模块补发秒数=マップの部品を送り直す秒数
+血量同步=体力の同期
+外观颜色同步=見た目の色の同期
+同步精简=同期の簡略化
+补发撤离点=納品所を送り直す
+最小可用模式=最小モード
+玩家属性=プレイヤーの能力
+加入时重放升级=参加時にアップグレードを適用し直す
