@@ -49,7 +49,7 @@ namespace FloorRoles
         private static ConfigEntry<int> LaunchCap;
         private static ConfigEntry<int> MonitorTextSize;
         private static ConfigEntry<int> MonitorLineHeight;
-        private static ConfigEntry<int> MonitorBottomPadding;
+        private static ConfigEntry<int> MonitorSpareLines;
         private static ConfigEntry<bool> RewardDice;
         private static ConfigEntry<int> DiceCriticalMax;
         private static ConfigEntry<int> DiceFumbleMin;
@@ -119,13 +119,13 @@ namespace FloorRoles
             PrerollLevel = cfg.Bind(Section, "次のマップを先に決める", true, "トラックに入った時点で次のマップを抽選し、モニターに出す");
             ShowOnMonitor = cfg.Bind(Section, "モニターに表示", true, "役職ごとの報酬をトラックのモニターに出す");
             MonitorTextSize = cfg.Bind(Section, "モニターの文字の大きさ(%)", 70,
-                new ConfigDescription("モニターに出す役職の説明の文字の大きさ。下が見切れるなら小さくする", new AcceptableValueRange<int>(40, 100)));
+                new ConfigDescription("モニターに出す役職の説明の文字の大きさの上限(枠に収まらなければ、自動で小さくする)", new AcceptableValueRange<int>(40, 100)));
             MonitorLineHeight = cfg.Bind(Section, "モニターの行の高さ(%)", 85,
                 new ConfigDescription("役職の説明の 1 行の高さ(ふつうの大きさの文字の行を 100 とする)。大きくすると行間が広がるが、下が見切れやすくなる",
                     new AcceptableValueRange<int>(40, 150)));
-            MonitorBottomPadding = cfg.Bind(Section, "モニターの下の空行", 3,
-                new ConfigDescription("役職の説明のあとに入れる空行の数(画面の下の見えない部分に入る)。まだ下が見切れるなら増やす",
-                    new AcceptableValueRange<int>(0, 8)));
+            MonitorSpareLines = cfg.Bind(Section, "モニターの行数の余裕", 1,
+                new ConfigDescription("役職の説明が枠に収まるか確かめるときに足す余裕の行数。まだ下が見切れるなら増やす(文字が小さくなる)",
+                    new AcceptableValueRange<int>(0, 6)));
             RewardCount = cfg.Bind(Section, "報酬の数", 2,
                 new ConfigDescription("報酬ダイスがクリティカル・ファンブル以外のとき(報酬ダイスなしならいつも)、役職の候補からランダムにいくつもらえるか",
                     new AcceptableValueRange<int>(1, 3)));
@@ -202,6 +202,15 @@ namespace FloorRoles
             {
                 if ((Net.TruckPageFinished() || waited >= 90f) && Net.TruckMessage(MonitorText()))
                 {
+                    // 古い文章が消えたかを、少しあとでログに出す(見切れの調査用)
+                    yield return new WaitForSeconds(2f);
+                    var screen = TruckScreenText.instance;
+                    if (screen && screen.textMesh)
+                    {
+                        string text = screen.textMesh.text ?? "";
+                        Plugin.Log.LogInfo($"モニター(2 秒後): 数えた行 {screen.textMesh.textInfo.lineCount}、改行 {text.Count(c => c == '\n')}、" +
+                                           $"古い文章の名前の行が残っている: {text.Contains(":</b>")}");
+                    }
                     yield break;
                 }
                 if (waited >= 150f)
@@ -215,12 +224,11 @@ namespace FloorRoles
 
         private static string MonitorText()
         {
-            // モニターは文章を 12 行まで残す(超えると上の行から消える。折り返しも 1 行に数える)が、
-            // 日本語だと画面に見えるのは 10 行ほどで、下が見切れる。表示枠はホストの MOD からは変えられないので、送る文章だけで収める:
-            // - 役職の説明 + 末尾の空行で 11 行にする(税務官の名前の行と合わせて 12 行)。古い文章は全部押し出され、
-            //   画面には役職の説明だけが残る。見えない下の部分には末尾の空行が入る
-            // - 長い行は折り返すので、実際の行数をモニターと同じ設定の文字で測ってから空行の数を決める
-            // - 文字を小さめにして、行間を少し空ける
+            // モニターは「12 行を超えたら上の行を消す」が、枠からはみ出した行は数えない(はみ出した行が見えないまま残る)。
+            // 表示枠はホストの MOD からは変えられないので、送る文章だけで収める:
+            // - 役職の説明の前に、見えないとても薄い行を 12 行入れる。薄い行は必ず枠に入るので行数が 12 を超え、
+            //   古い文章・名前の行・薄い行が上から消えていき、最後は「薄い行 + 役職の説明」の 12 行が残る
+            // - 長い行は折り返すので、モニターと同じ設定の見えない文字で行数と枠の高さを測り、収まる文字の大きさを選ぶ
             string amount = RewardAmount.Value > 1 ? $"(各+{RewardAmount.Value})" : "";
             var lines = new List<string>();
             if (nextLevel)
@@ -247,26 +255,51 @@ namespace FloorRoles
                 lines.Add("出発時ダイス " + string.Join(" ", dice));
             }
 
-            int measured = MeasureLines(FormatMonitorLines(lines));
-            int contentLines = measured > 0 ? measured : lines.Count;
-            // 11 行(名前の行と合わせて 12 行)に足りない分は必ず埋める。見えない下の部分の分(設定の空行)は、
-            // 名前の行を押し出す分までは足してよいが、役職の説明は押し出さない
-            int padding = Mathf.Max(0, Mathf.Max(11 - contentLines, Mathf.Min(MonitorBottomPadding.Value, 12 - contentLines)));
-            for (int i = 0; i < padding; i++)
+            // 文字の大きさを決める: 役職の説明が枠に収まる大きさ(設定の大きさから 5% ずつ小さくして探す)
+            int size = MonitorTextSize.Value;
+            int contentLines = lines.Count;
+            string diagnosis = "測定できませんでした";
+            using (var probe = MonitorProbe.Create())
             {
-                lines.Add(" ");
+                if (probe != null)
+                {
+                    for (;; size -= 5)
+                    {
+                        contentLines = probe.CountLines(FormatMonitorLines(lines, size));
+                        bool fits = contentLines <= 11 && probe.Fits(size, MonitorLineHeight.Value, contentLines + MonitorSpareLines.Value);
+                        diagnosis = probe.Describe(size, MonitorLineHeight.Value);
+                        if (fits || size - 5 < 30)
+                        {
+                            break;
+                        }
+                    }
+                }
             }
-            Plugin.Verbose($"モニター: 役職の説明 {lines.Count - padding} 行 → 表示 {contentLines} 行(測定 {(measured > 0 ? "成功" : "失敗")})、空行 {padding}");
-            return FormatMonitorLines(lines);
+            Plugin.Log.LogInfo($"モニター: 文字 {size}%、役職の説明 {contentLines} 行({diagnosis})");
+            return FlushLines(12) + "\n" + FormatMonitorLines(lines, size);
+        }
+
+        /// <summary>
+        /// 見えない、とても薄い行(古い文章を押し出す用)。最後の 1 行だけは、次の行(役職の説明)との間を
+        /// ふつうの行の間隔にする(薄いままだと、役職の説明の 1 行目が上にはみ出す)。
+        /// </summary>
+        private static string FlushLines(int count)
+        {
+            var parts = new List<string>();
+            for (int i = 0; i < count; i++)
+            {
+                int height = i == count - 1 ? MonitorLineHeight.Value : 1;
+                parts.Add($"<line-height={height}%><size=1%><color=#00000000>.</color></size>");
+            }
+            return string.Join("\n", parts);
         }
 
         /// <summary>
         /// 上から 1 行ずつ消えても効き目が残るように、行ごとに大きさと行の高さを指定する。
         /// 行の高さは改行の時点で効くので閉じずに続け、最後の行の終わりで閉じる(あとから来る文章に残さない)
         /// </summary>
-        private static string FormatMonitorLines(List<string> lines)
+        private static string FormatMonitorLines(List<string> lines, int size)
         {
-            int size = MonitorTextSize.Value;
             string lineHeight = $"<line-height={MonitorLineHeight.Value}%>";
             var text = string.Join("\n", lines.Select(l => size >= 100 ? lineHeight + l : $"{lineHeight}<size={size}%>{l}</size>"));
             return text + "</line-height>";
@@ -296,71 +329,6 @@ namespace FloorRoles
             int min = Mathf.Min(counts.Min(), candidates);
             int max = Mathf.Min(counts.Max(), candidates);
             return min == max ? $"{min}" : $"{min}~{max}";
-        }
-
-        /// <summary>
-        /// 文章がモニターで何行になるか(折り返しを含む)を、ホストのモニターと同じ設定の見えない文字で測る。
-        /// モニター本体の文字は使わない(測ると表示中の文章の状態が変わるため)。測れなければ -1。
-        /// </summary>
-        private static int MeasureLines(string text)
-        {
-            var screen = TruckScreenText.instance;
-            var source = screen ? screen.textMesh : null;
-            if (!source)
-            {
-                return -1;
-            }
-            GameObject go = null;
-            try
-            {
-                go = new GameObject("FloorRoles.MonitorMeasure", typeof(RectTransform));
-                var rect = (RectTransform)go.transform;
-                rect.SetParent(source.transform.parent, false);
-                var sourceRect = source.rectTransform;
-                rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-                rect.pivot = sourceRect.pivot;
-                rect.sizeDelta = sourceRect.rect.size;
-                rect.localScale = sourceRect.localScale;
-                rect.localRotation = sourceRect.localRotation;
-
-                var probe = go.AddComponent<TextMeshProUGUI>();
-                probe.font = source.font;
-                probe.fontSharedMaterial = source.fontSharedMaterial;
-                probe.fontStyle = source.fontStyle;
-                probe.enableAutoSizing = source.enableAutoSizing;
-                probe.fontSizeMin = source.fontSizeMin;
-                probe.fontSizeMax = source.fontSizeMax;
-                probe.fontSize = source.fontSize;
-                probe.textWrappingMode = source.textWrappingMode;
-                probe.overflowMode = source.overflowMode;
-                probe.margin = source.margin;
-                probe.lineSpacing = source.lineSpacing;
-                probe.lineSpacingAdjustment = source.lineSpacingAdjustment;
-                probe.paragraphSpacing = source.paragraphSpacing;
-                probe.characterSpacing = source.characterSpacing;
-                probe.wordSpacing = source.wordSpacing;
-                probe.alignment = source.alignment;
-                probe.richText = source.richText;
-                probe.raycastTarget = false;
-                probe.color = Color.clear;
-
-                probe.text = SemiFunc.EmojiText(text);
-                probe.ForceMeshUpdate(true, true);
-                return probe.textInfo != null ? probe.textInfo.lineCount : -1;
-            }
-            catch (Exception e)
-            {
-                Plugin.Log.LogWarning($"モニターの行数を測れませんでした: {e.Message}");
-                return -1;
-            }
-            finally
-            {
-                if (go)
-                {
-                    // 同じフレームのうちに消えるので、画面には映らない
-                    Object.Destroy(go);
-                }
-            }
         }
 
         // ---- 次のマップ ----
