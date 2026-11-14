@@ -19,7 +19,7 @@ namespace FloorRoles
     ///
     /// 戦闘「避雷針」
     /// - 武器(銃・近接)をつかんで上を向くとチャージ開始(「Charge start!」)。上を向いたまま数秒たつと「Charge complete!」。
-    ///   途中で武器を離すか、下を向くと中断。
+    ///   途中で武器を離すか、下を向くと中断。チャージ後も、攻撃する前に武器を落とす・しまうと解除。
     ///   チャージした武器の次の攻撃は、当たった 0.5 秒後にもう一度同じダメージが入る
     /// - しゃがんで電池切れの武器を 4 秒つかむと 1D100
     ///   クリティカル: 電池全回復 / 50 以下: 電池 +12.5% / それ以外: 電池 -12.5% / ファンブル: 武器が壊れる(購入したアイテムからも消える)
@@ -138,8 +138,8 @@ namespace FloorRoles
         /// <summary>価値を失わない物と、その期限(Time.time)。</summary>
         private static readonly Dictionary<PhysGrabObject, float> Protected = new Dictionary<PhysGrabObject, float>();
 
-        /// <summary>チャージ済みの武器。</summary>
-        private static readonly HashSet<PhysGrabObject> Charged = new HashSet<PhysGrabObject>();
+        /// <summary>チャージ済みの武器と、チャージした人(その人が手放すと解除)。</summary>
+        private static readonly Dictionary<PhysGrabObject, PlayerAvatar> Charged = new Dictionary<PhysGrabObject, PlayerAvatar>();
         private static readonly HashSet<PlayerAvatar> Charging = new HashSet<PlayerAvatar>();
         /// <summary>チャージを使った近接武器と、2 回ダメージになる期限(同じ振りで複数の敵に当たったとき用)。</summary>
         private static readonly Dictionary<PhysGrabObject, float> MeleeWindows = new Dictionary<PhysGrabObject, float>();
@@ -176,6 +176,7 @@ namespace FloorRoles
             {
                 grabScanTimer = 0.2f;
                 ScanGrabs();
+                DropReleasedCharges();
             }
             foreach (var player in SemiFunc.PlayerGetList())
             {
@@ -494,7 +495,7 @@ namespace FloorRoles
 
         private static void TickCharge(PlayerAvatar player, PhysGrabObject grabbed)
         {
-            if (!grabbed || !IsWeapon(grabbed) || Charged.Contains(grabbed) || Charging.Contains(player))
+            if (!grabbed || !IsWeapon(grabbed) || Charged.ContainsKey(grabbed) || Charging.Contains(player))
             {
                 return;
             }
@@ -532,7 +533,7 @@ namespace FloorRoles
                     timer += Time.deltaTime;
                     yield return null;
                 }
-                Charged.Add(weapon);
+                Charged[weapon] = player;
                 Net.Speak(player, "Charge complete!");
                 Plugin.Verbose($"避雷針: {Net.Name(player)} の {name} をチャージしました");
             }
@@ -544,6 +545,32 @@ namespace FloorRoles
 
         /// <summary>チャージ中、角度が足りなくても中断しない時間(秒)。</summary>
         private const float LookDownGrace = 0.25f;
+
+        /// <summary>チャージした人が武器を落とした・しまった(つかんでいない)ら、チャージを解除する。</summary>
+        private static void DropReleasedCharges()
+        {
+            if (Charged.Count == 0)
+            {
+                return;
+            }
+            foreach (var pair in Charged.ToList())
+            {
+                var weapon = pair.Key;
+                var player = pair.Value;
+                bool holding = weapon && !weapon.dead && Net.Alive(player) &&
+                               Grabbed.TryGetValue(player, out var grabbed) && grabbed == weapon;
+                if (holding)
+                {
+                    continue;
+                }
+                Charged.Remove(weapon);
+                if (player && Net.Alive(player))
+                {
+                    Net.Speak(player, "チャージ解除…");
+                }
+                Plugin.Verbose($"避雷針: {Net.Name(player)} が武器を手放したので、チャージを解除しました");
+            }
+        }
 
         private static bool StillHolding(PlayerAvatar player, PhysGrabObject weapon, int generation)
         {
