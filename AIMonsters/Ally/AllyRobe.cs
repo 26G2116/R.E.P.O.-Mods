@@ -235,18 +235,34 @@ namespace AIMonsters
             }
         }
 
-        /// <summary>最初の出現場所を、オーブが割れた場所にする。</summary>
+        /// <summary>
+        /// 出現場所: 最初はオーブが割れた場所、2 回目からはついていく人の後ろ。
+        /// (ゲームの「何度も詰まったら消える」などで消えたとき、遠くの出現地点に出ないようにする)
+        /// </summary>
         [HarmonyPatch(typeof(SemiFunc), nameof(SemiFunc.EnemySpawn))]
         private static class EnemySpawnPatch
         {
             private static bool Prefix(Enemy enemy, ref bool __result)
             {
-                if (!pendingSpawn || !enemy || !allyParent || enemy.EnemyParent != allyParent)
+                if (!enemy || !allyParent || enemy.EnemyParent != allyParent || !IsHost)
                 {
                     return true;
                 }
+                Vector3 spot;
+                if (pendingSpawn)
+                {
+                    spot = pendingSpot;
+                }
+                else if (!RespawnSpot(out spot))
+                {
+                    return true; // ついていく人がいない: ゲームの出現地点に任せる
+                }
+                else
+                {
+                    Plugin.Log.LogInfo("味方のローブ: 消えたので、ついていく人の後ろに出し直しました");
+                }
                 pendingSpawn = false;
-                enemy.EnemyTeleported(pendingSpot);
+                enemy.EnemyTeleported(spot);
                 enemy.EnemyParent.firstSpawnPointUsed = true;
                 if (enemy.Health)
                 {
@@ -261,6 +277,32 @@ namespace AIMonsters
                 __result = true;
                 return false;
             }
+        }
+
+        /// <summary>出し直す場所(ついていく人の 2m 後ろ。倒れていれば一番近い人)。</summary>
+        private static bool RespawnSpot(out Vector3 spot)
+        {
+            spot = default;
+            var leader = Leader && !Leader.isDisabled ? Leader : null;
+            if (!leader)
+            {
+                foreach (var player in SemiFunc.PlayerGetList())
+                {
+                    if (player && !player.isDisabled)
+                    {
+                        leader = player;
+                        break;
+                    }
+                }
+            }
+            if (!leader)
+            {
+                return false;
+            }
+            Vector3 position = leader.transform.position;
+            var back = -Vector3.ProjectOnPlane(leader.transform.forward, Vector3.up).normalized;
+            spot = Nav.Sample(position + back * 2f, out var point) ? point : Nav.Sample(position, out point) ? point : position;
+            return true;
         }
 
         /// <summary>受けるダメージを減らす(既定は 0 = 倒されない)。</summary>
