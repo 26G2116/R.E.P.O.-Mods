@@ -21,6 +21,7 @@ namespace MonsterTweaks
         internal static ConfigEntry<bool> Enabled;
         internal static ConfigEntry<bool> CarryToMonsters;
         internal static ConfigEntry<float> CarryTime;
+        internal static ConfigEntry<float> MinMonsterDistance;
         internal static ConfigEntry<bool> DrainBattery;
         internal static ConfigEntry<float> HealMultiplier;
 
@@ -29,6 +30,8 @@ namespace MonsterTweaks
             Enabled = cfg.Bind(Section, "有効", true, "ヒドゥンの変更を使う");
             CarryToMonsters = cfg.Bind(Section, "ほかのモンスターの所へ運ぶ", true,
                 "つかんだプレイヤーを、一番近くにいるほかのモンスターの所へ運ぶ(いなければ本来どおり遠くへ)");
+            MinMonsterDistance = Util.Float(cfg, Section, "運ぶ先のモンスターの最低距離", 15f, 0f, 100f,
+                "この距離(m)以上離れたモンスターの中から、一番近いものを運ぶ先にする(近すぎて運ぶ距離が極端に短くならないように)。該当がなければ本来どおり遠くへ");
             CarryTime = Util.Float(cfg, Section, "運ぶ時間の上限", 15f, 3f, 40f,
                 "プレイヤーを運び続ける最長の秒数(ゲーム本来は 10)。モンスターの所まで届くように少し長め");
             DrainBattery = cfg.Bind(Section, "つかんだ人の電池を吸い取る", true,
@@ -92,12 +95,17 @@ namespace MonsterTweaks
                     continue;
                 }
                 var enemy = parent.Enemy;
-                // 上空で待機中のクリーンアップクルーの分身は除く
-                if (enemy.CurrentState == EnemyState.Despawn || (enemy.HasHealth && enemy.Health.dead) || CleanupCrewClones.IsParked(enemy))
+                // 上空で待機中のクリーンアップクルーの分身と、AIMonsters の味方のローブは除く
+                if (enemy.CurrentState == EnemyState.Despawn || (enemy.HasHealth && enemy.Health.dead) || CleanupCrewClones.IsParked(enemy)
+                    || Util.AIMonstersAlly(enemy))
                 {
                     continue;
                 }
                 float distance = Vector3.Distance(from, enemy.transform.position);
+                if (distance < MinMonsterDistance.Value)
+                {
+                    continue; // 近すぎる(運ぶ距離が極端に短くなる)
+                }
                 if (distance < bestDistance)
                 {
                     bestDistance = distance;

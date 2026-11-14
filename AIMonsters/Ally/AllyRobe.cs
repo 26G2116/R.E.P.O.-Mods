@@ -154,6 +154,10 @@ namespace AIMonsters
             {
                 robe.enemy.gameObject.AddComponent<AIMonstersControlled>();
             }
+            if (robe.enemy && !robe.enemy.GetComponent<AIMonstersAlly>())
+            {
+                robe.enemy.gameObject.AddComponent<AIMonstersAlly>();
+            }
             Leader = summoner;
             CurrentMode = Mode.Follow;
             OrderedTarget = null;

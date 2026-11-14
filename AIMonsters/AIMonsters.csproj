@@ -4,7 +4,7 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>AIMonsters</AssemblyName>
     <RootNamespace>AIMonsters</RootNamespace>
-    <Version>0.6.3</Version>
+    <Version>0.6.4</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <DebugType>portable</DebugType>

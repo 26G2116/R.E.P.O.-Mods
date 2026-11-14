@@ -14,6 +14,9 @@ namespace MonsterTweaks
         /// </summary>
         internal static bool AIControlled(Component enemy) => enemy && enemy.GetComponent("AIMonstersControlled");
 
+        /// <summary>AIMonsters の味方のローブか(プレイヤーの味方なので、敵として扱わない)。</summary>
+        internal static bool AIMonstersAlly(Component enemy) => enemy && enemy.GetComponent("AIMonstersAlly");
+
         internal static ConfigEntry<float> Float(ConfigFile cfg, string section, string key, float value, float min, float max, string description)
         {
             return cfg.Bind(section, key, value, new ConfigDescription(description, new AcceptableValueRange<float>(min, max)));

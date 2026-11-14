@@ -696,6 +696,11 @@ namespace AIMonsters
     {
     }
 
+    /// <summary>味方のローブの目印(ホストだけ)。ほかの MOD は GetComponent("AIMonstersAlly") で調べ、敵として扱わないようにできる。</summary>
+    public sealed class AIMonstersAlly : MonoBehaviour
+    {
+    }
+
     /// <summary>
     /// AI への説明を、BepInEx/config/AIMonsters/ のテキストファイルで差し替える。
     /// - 「敵の英名.txt」(例: Loom.txt): その敵の説明の代わりに使う
