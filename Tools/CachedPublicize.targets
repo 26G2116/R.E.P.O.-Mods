@@ -1,0 +1,29 @@
+<Project>
+  <!--
+    Windows の Smart App Control などで BepInEx.AssemblyPublicizer の DLL が読み込めないとき用。
+    `dotnet build -p:UseCachedPublicized=true` で、前回のビルドで obj に作った公開化済みの DLL をそのまま使う。
+    (ゲームが更新されたあとは使えない。公開化した DLL が古いまま残るため)
+    パッケージの Publicize ターゲットを同じ名前で上書きする。
+  -->
+  <Target Name="Publicize" AfterTargets="ResolveReferences" BeforeTargets="FindReferenceAssembliesForReferences">
+    <PropertyGroup>
+      <_CachedPublicizedDir>$(IntermediateOutputPath)publicized\</_CachedPublicizedDir>
+      <GeneratedIgnoresAccessChecksToFile Condition="'$(GeneratedIgnoresAccessChecksToFile)' == ''">$(IntermediateOutputPath)$(MSBuildProjectName).IgnoresAccessChecksTo.cs</GeneratedIgnoresAccessChecksToFile>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CachedPublicizeSource Include="@(ReferencePath)" Condition="'%(ReferencePath.Publicize)' == 'true'" />
+      <_CachedPublicized Include="@(_CachedPublicizeSource->'$(_CachedPublicizedDir)%(Filename)%(Extension)')" />
+    </ItemGroup>
+    <Error Condition="!Exists('%(_CachedPublicized.Identity)')" Text="公開化済みの %(_CachedPublicized.Identity) がありません。一度ふつうにビルドしてください" />
+    <Error Condition="!Exists('$(GeneratedIgnoresAccessChecksToFile)')" Text="$(GeneratedIgnoresAccessChecksToFile) がありません。一度ふつうにビルドしてください" />
+    <Warning Text="公開化済みの DLL を obj から使います(ゲームが更新されたら、ふつうにビルドし直してください)" />
+    <ItemGroup>
+      <ReferencePath Remove="@(_CachedPublicizeSource)" />
+      <ReferencePath Include="@(_CachedPublicized)" />
+      <Compile Include="$(GeneratedIgnoresAccessChecksToFile)" />
+    </ItemGroup>
+    <PropertyGroup>
+      <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+  </Target>
+</Project>

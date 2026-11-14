@@ -4,7 +4,7 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>FloorRoles</AssemblyName>
     <RootNamespace>FloorRoles</RootNamespace>
-    <Version>0.3.3</Version>
+    <Version>0.3.4</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <DebugType>portable</DebugType>
@@ -81,5 +81,8 @@
     <ZipDirectory SourceDirectory="$(TsStageDir)" DestinationFile="$(TsDistDir)\$(TsAuthor)-$(TsName)-$(Version).zip" />
     <Message Importance="high" Text="-> $(TsDistDir)\$(TsAuthor)-$(TsName)-$(Version).zip を作成しました" />
   </Target>
+
+  <!-- AssemblyPublicizer が Windows にブロックされるとき: dotnet build -p:UseCachedPublicized=true -->
+  <Import Project="..\Tools\CachedPublicize.targets" Condition="'$(UseCachedPublicized)' == 'true'" />
 
 </Project>
