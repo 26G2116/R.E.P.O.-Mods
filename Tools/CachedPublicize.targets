@@ -15,12 +15,14 @@
       <_CachedPublicized Include="@(_CachedPublicizeSource->'$(_CachedPublicizedDir)%(Filename)%(Extension)')" />
     </ItemGroup>
     <Error Condition="!Exists('%(_CachedPublicized.Identity)')" Text="公開化済みの %(_CachedPublicized.Identity) がありません。一度ふつうにビルドしてください" />
-    <Error Condition="!Exists('$(GeneratedIgnoresAccessChecksToFile)')" Text="$(GeneratedIgnoresAccessChecksToFile) がありません。一度ふつうにビルドしてください" />
+    <WriteLinesToFile File="$(GeneratedIgnoresAccessChecksToFile)" Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Lines="// &lt;auto-generated /&gt;;#pragma warning disable CS0436 // Type conflicts with imported type;;@(_CachedPublicizeSource->'[assembly: System.Runtime.CompilerServices.IgnoresAccessChecksToAttribute(&quot;%(Filename)&quot;)]')" />
     <Warning Text="公開化済みの DLL を obj から使います(ゲームが更新されたら、ふつうにビルドし直してください)" />
     <ItemGroup>
       <ReferencePath Remove="@(_CachedPublicizeSource)" />
       <ReferencePath Include="@(_CachedPublicized)" />
       <Compile Include="$(GeneratedIgnoresAccessChecksToFile)" />
+      <FileWrites Include="$(GeneratedIgnoresAccessChecksToFile)" />
     </ItemGroup>
     <PropertyGroup>
       <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

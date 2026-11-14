@@ -18,7 +18,7 @@ namespace FloorRoles
     ///   ファンブル: 美術館の卵で爆発 / それ以外: 何も起きない
     ///
     /// 戦闘「避雷針」
-    /// - 武器(銃・近接)をつかんで上を向くとチャージ開始(「チャージ開始！」)。上を向いたまま数秒たつと「チャージ完了！」。
+    /// - 武器(銃・近接)をつかんで上を向くとチャージ開始(「Charge start!」)。上を向いたまま数秒たつと「Charge complete!」。
     ///   途中で武器を離すか、下を向くと中断。
     ///   チャージした武器の次の攻撃は、当たった 0.5 秒後にもう一度同じダメージが入る
     /// - しゃがんで電池切れの武器を 4 秒つかむと 1D100
@@ -70,7 +70,7 @@ namespace FloorRoles
             ChargeAngle = cfg.Bind(Section, "戦闘: チャージの見上げる角度", 60,
                 new ConfigDescription("武器をつかんだまま、水平からこの角度以上、上を向くとチャージを始める。完了まで上を向き続ける必要がある", new AcceptableValueRange<int>(10, 89)));
             ChargeSeconds = cfg.Bind(Section, "戦闘: チャージにかかる秒数", 4f,
-                new ConfigDescription("「チャージ開始！」から「チャージ完了！」までの時間。そのあいだ武器をつかんで上を向き続ける", new AcceptableValueRange<float>(0.5f, 30f)));
+                new ConfigDescription("「Charge start!」から「Charge complete!」までの時間。そのあいだ武器をつかんで上を向き続ける", new AcceptableValueRange<float>(0.5f, 30f)));
             SecondHitDelay = cfg.Bind(Section, "戦闘: 2回目のダメージまでの秒数", 0.5f,
                 new ConfigDescription("チャージした攻撃が当たってから、もう一度ダメージが入るまでの時間", new AcceptableValueRange<float>(0f, 5f)));
             BatteryStep = cfg.Bind(Section, "戦闘: 電池の増減(%)", 12.5f,
@@ -512,7 +512,7 @@ namespace FloorRoles
             {
                 string name = WeaponName(weapon);
                 // 武器をつかんで上を向いたまま、決まった時間たつと完了(離すか下を向いたら中断)
-                Net.Speak(player, "チャージ開始！");
+                Net.Speak(player, "Charge start!");
                 float timer = 0f;
                 float lookingDown = 0f;
                 while (timer < ChargeSeconds.Value)
@@ -533,7 +533,7 @@ namespace FloorRoles
                     yield return null;
                 }
                 Charged.Add(weapon);
-                Net.Speak(player, "チャージ完了！");
+                Net.Speak(player, "Charge complete!");
                 Plugin.Verbose($"避雷針: {Net.Name(player)} の {name} をチャージしました");
             }
             finally
