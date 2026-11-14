@@ -27,6 +27,7 @@ namespace AIMonsters
         private static ConfigEntry<int> Damage;
         private static ConfigEntry<float> DamageTaken;
         private static ConfigEntry<bool> MarkerOrb;
+        private static ConfigEntry<float> RespawnDelay;
 
         internal enum Mode
         {
@@ -48,6 +49,7 @@ namespace AIMonsters
 
         private static EnemyParent allyParent;
         private static bool pendingSpawn;
+        private static bool respawnTimerSet;
         private static Vector3 pendingSpot;
         private static bool used;
         private static LevelGenerator level;
@@ -76,6 +78,9 @@ namespace AIMonsters
                 new ConfigDescription("味方のローブが受けるダメージの倍率(0 で倒されない。プレイヤーの武器の巻き添え対策)", new AcceptableValueRange<float>(0f, 2f)));
             MarkerOrb = cfg.Bind(Section, "頭の上にオーブを浮かべる", true,
                 "敵のローブと見分けられるように、頭の上にヒーラーオーブを浮かべる(MOD なしの人にも見える)");
+            RespawnDelay = cfg.Bind(Section, "消えたあと出直すまでの秒数", 1f,
+                new ConfigDescription("何度も詰まったときなど、ゲームの仕組みで消えたあと、ついていく人の後ろに出直すまでの秒数",
+                    new AcceptableValueRange<float>(0f, 300f)));
         }
 
         internal static bool IsAlly(Enemy enemy) => enemy && Ally && Ally.enemy == enemy;
@@ -226,10 +231,21 @@ namespace AIMonsters
                 }
                 if (!__instance.Spawned)
                 {
-                    __instance.DespawnedTimer = Mathf.Min(__instance.DespawnedTimer, 0.3f);
+                    if (pendingSpawn)
+                    {
+                        // 呼び出した直後: すぐ出す
+                        __instance.DespawnedTimer = Mathf.Min(__instance.DespawnedTimer, 0.3f);
+                    }
+                    else if (!respawnTimerSet)
+                    {
+                        // 消えた: 出直すまでの時間を設定の秒数にする(消えるたびに 1 回だけ)
+                        respawnTimerSet = true;
+                        __instance.DespawnedTimer = RespawnDelay.Value;
+                    }
                 }
                 else
                 {
+                    respawnTimerSet = false;
                     __instance.SpawnedTimer = Mathf.Max(__instance.SpawnedTimer, 60f);
                 }
             }
@@ -674,6 +690,7 @@ namespace AIMonsters
             attackTarget = null;
             swingTarget = null;
             pendingSpawn = false;
+            respawnTimerSet = false;
             used = false;
             marker = null;
             markerName = null;
