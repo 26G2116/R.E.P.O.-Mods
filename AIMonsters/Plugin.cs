@@ -19,7 +19,7 @@ namespace AIMonsters
     {
         public const string PluginGuid = "shunm.AIMonsters";
         public const string PluginName = "AIMonsters";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.2.0";
 
         private const string General = "0. 全体";
 
@@ -56,6 +56,7 @@ namespace AIMonsters
                 new ConfigDescription("1 回の返事の長さの上限", new AcceptableValueRange<int>(50, 4000)));
 
             Director.Bind(Config);
+            LoomDriver.Bind(Config);
 
             Runner.Create();
             harmony = new Harmony(PluginGuid);

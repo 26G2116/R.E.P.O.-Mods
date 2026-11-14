@@ -23,6 +23,9 @@ namespace AIMonsters
 
         bool Matches(Enemy enemy);
 
+        /// <summary>この敵がその人を見えているか(AI に任せ始める・やめる判定と、AI に伝える情報)。</summary>
+        bool Sees(Enemy enemy, PlayerAvatar player);
+
         /// <summary>この敵だけの情報を状況に足す(今の状態など)。</summary>
         void Describe(Enemy enemy, JObject info);
 
@@ -168,7 +171,7 @@ namespace AIMonsters
             {
                 bool gone = !c.Enemy || !c.Enemy.EnemyParent || !c.Enemy.EnemyParent.Spawned
                             || c.Enemy.CurrentState == EnemyState.Despawn || Dead(c.Enemy) || !c.Driver.Enabled;
-                if (!gone && SeesAnyone(c.Enemy))
+                if (!gone && SeesAnyone(c.Driver, c.Enemy))
                 {
                     c.LastSeen = Time.time;
                 }
@@ -189,34 +192,33 @@ namespace AIMonsters
             {
                 var enemy = parent ? parent.Enemy : null;
                 if (!enemy || !parent.Spawned || enemy.CurrentState == EnemyState.Despawn || Dead(enemy)
-                    || Controlleds.Any(c => c.Enemy == enemy) || !SeesAnyone(enemy))
+                    || Controlleds.Any(c => c.Enemy == enemy))
                 {
                     continue;
                 }
                 var driver = Drivers.FirstOrDefault(d => d.Enabled && d.Matches(enemy));
-                if (driver == null)
+                if (driver == null || !SeesAnyone(driver, enemy))
                 {
                     continue;
                 }
                 var c = new Controlled { Enemy = enemy, Driver = driver, Id = nextId++, LastSeen = Time.time };
                 Controlleds.Add(c);
+                Mark(enemy, true);
                 Plugin.Verbose($"{Label(c)}: プレイヤーを見つけたので、AI に任せます");
                 // 見つけた直後はすぐ判断させる
                 nextRequest = Mathf.Min(nextRequest, Time.time);
             }
         }
 
-        private static bool SeesAnyone(Enemy enemy)
-        {
-            var vision = enemy.Vision;
-            return vision && vision.VisionsTriggered.Values.Any(count => count > 0);
-        }
+        private static bool SeesAnyone(IEnemyDriver driver, Enemy enemy) =>
+            SemiFunc.PlayerGetList().Any(p => p && !p.isDisabled && driver.Sees(enemy, p));
 
         private static bool Dead(Enemy enemy) => enemy.HasHealth && enemy.Health && enemy.Health.healthCurrent <= 0;
 
         private static void Release(Controlled c)
         {
             Controlleds.Remove(c);
+            Mark(c.Enemy, false);
             Guard(c, () => c.Driver.Release(c.Enemy));
         }
 
@@ -253,6 +255,46 @@ namespace AIMonsters
         }
 
         private static string Label(Controlled c) => $"{c.Driver.TypeName}#{c.Id}";
+
+        /// <summary>AI が動かしている敵なら、今の指示(ない場合は null)を返す。敵ごとのパッチから使う。</summary>
+        internal static bool TryGetOrder(Enemy enemy, out Order order)
+        {
+            order = null;
+            if (!enemy)
+            {
+                return false;
+            }
+            foreach (var c in Controlleds)
+            {
+                if (c.Enemy == enemy)
+                {
+                    order = c.Order;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// AI が動かしている敵に目印(AIMonstersControlled)をつける・外す。
+        /// ほかの MOD(MonsterTweaks)は、型を参照せずに GetComponent("AIMonstersControlled") で調べられる。
+        /// </summary>
+        private static void Mark(Enemy enemy, bool on)
+        {
+            if (!enemy)
+            {
+                return;
+            }
+            var marker = enemy.GetComponent<AIMonstersControlled>();
+            if (on && !marker)
+            {
+                enemy.gameObject.AddComponent<AIMonstersControlled>();
+            }
+            else if (!on && marker)
+            {
+                Object.Destroy(marker);
+            }
+        }
 
         // ================================================================
         // API
@@ -302,7 +344,13 @@ namespace AIMonsters
             text.AppendLine("Monsters:");
             foreach (var driver in drivers)
             {
-                text.AppendLine($"- {driver.TypeName}: {driver.Rules}");
+                text.AppendLine($"- {driver.TypeName}: {PromptFiles.Read(driver.TypeName) ?? driver.Rules}");
+            }
+            string common = PromptFiles.Read("Common");
+            if (common != null)
+            {
+                text.AppendLine("Extra instructions:");
+                text.AppendLine(common);
             }
             text.AppendLine("Give exactly one order per monster. \"player\" is a player id or null; \"valuable\" is a valuable id or null.");
             text.AppendLine("Reply only with JSON: {\"orders\":[{\"enemy\":1,\"action\":\"chase\",\"player\":2,\"valuable\":null,\"why\":\"max 8 words\"}]}");
@@ -349,7 +397,7 @@ namespace AIMonsters
                     {
                         ["player"] = playerIds[player],
                         ["dist"] = Round(distance),
-                        ["you_see_them"] = Sees(c.Enemy, player),
+                        ["you_see_them"] = c.Driver.Sees(c.Enemy, player),
                         ["they_see_you"] = SeenBy(c.Enemy, player),
                     });
                 }
@@ -498,8 +546,8 @@ namespace AIMonsters
             return grab ? grab.centerPoint : valuable.transform.position;
         }
 
-        /// <summary>敵がその人を見えているか(ゲームの視界の判定で、今見えている)。</summary>
-        internal static bool Sees(Enemy enemy, PlayerAvatar player) =>
+        /// <summary>敵がその人を見えているか(ゲームの視界の判定で、今見えている)。視界の仕組みがない敵は false。</summary>
+        internal static bool VisionSees(Enemy enemy, PlayerAvatar player) =>
             enemy.Vision && player.photonView && enemy.Vision.VisionsTriggered.TryGetValue(player.photonView.ViewID, out int count) && count > 0;
 
         /// <summary>その人の画面に敵が映っているか(気づかれているか)。</summary>
@@ -569,5 +617,56 @@ namespace AIMonsters
         }
 
         private static float Round(float value) => Mathf.Round(value * 10f) / 10f;
+    }
+
+    /// <summary>AI が動かしている敵の目印(ホストだけ)。ほかの MOD は GetComponent("AIMonstersControlled") で調べる。</summary>
+    public sealed class AIMonstersControlled : MonoBehaviour
+    {
+    }
+
+    /// <summary>
+    /// AI への説明を、BepInEx/config/AIMonsters/ のテキストファイルで差し替える。
+    /// - 「敵の英名.txt」(例: Loom.txt): その敵の説明の代わりに使う
+    /// - 「Common.txt」: 全体への追加の指示
+    /// 書き換えたら次の呼び出しから使う(ファイルの更新日時で読み直す)。
+    /// </summary>
+    internal static class PromptFiles
+    {
+        private sealed class Entry
+        {
+            internal DateTime Written;
+            internal string Text;
+        }
+
+        private static readonly Dictionary<string, Entry> Cache = new Dictionary<string, Entry>();
+
+        internal static string Folder => System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "AIMonsters");
+
+        internal static string Read(string name)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(Folder, name + ".txt");
+                if (!System.IO.File.Exists(path))
+                {
+                    Cache.Remove(name);
+                    return null;
+                }
+                var written = System.IO.File.GetLastWriteTimeUtc(path);
+                if (!Cache.TryGetValue(name, out var entry) || entry.Written != written)
+                {
+                    string text = System.IO.File.ReadAllText(path).Trim();
+                    entry = new Entry { Written = written, Text = text.Length > 0 ? text : null };
+                    Cache[name] = entry;
+                    Plugin.Log.LogInfo($"AI への説明 {name}.txt を読み込みました");
+                }
+                return entry.Text;
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"AI への説明 {name}.txt を読めませんでした: {e.Message}");
+                return null;
+            }
+        }
     }
 }
