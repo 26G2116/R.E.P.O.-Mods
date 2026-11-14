@@ -290,9 +290,18 @@ namespace AIMonsters
             return persona + "\n" +
                    "Players talk to you in chat. Reply in the same language as the latest message, in at most 80 characters, " +
                    "or with an empty string if no reply is needed. Do not repeat yourself.\n" +
-                   "You can also change what you do: \"follow\" (follow a player; set follow_player), \"wait\" (stay here), " +
-                   "\"attack\" (attack a monster; set target_enemy to its id), or \"none\" (keep doing the same).\n" +
-                   "Reply only with JSON: {\"say\":\"text or empty\",\"command\":\"none\",\"follow_player\":null,\"target_enemy\":null}";
+                   "You can also change what you do (\"command\"):\n" +
+                   "- \"follow\": follow a player. follow_player = the player's id from the list, or the name (or part of it) exactly as written in chat. If nobody is named, the speaker's id.\n" +
+                   "- \"wait\": stay here.\n" +
+                   "- \"attack\": attack a monster; target_enemy = its id.\n" +
+                   "- \"guide\": walk ahead and lead a player somewhere, waiting if they fall behind. guide_to = \"truck\" " +
+                   "(when asked to go back to the truck or to lead the way back; also when no destination is given) or a player's id or name as written in chat; " +
+                   "guide_for = the id of the player to lead (usually the speaker).\n" +
+                   "- \"none\": keep doing the same.\n" +
+                   "\"fight\": false when asked not to attack or fight monsters (you stop attacking on your own), " +
+                   "true when asked to fight again or to defeat a monster, otherwise null.\n" +
+                   "Reply only with JSON: {\"say\":\"text or empty\",\"command\":\"none\",\"follow_player\":null,\"target_enemy\":null," +
+                   "\"guide_to\":null,\"guide_for\":null,\"fight\":null}";
         }
 
         private static string BuildState(Dictionary<int, Enemy> enemyIds, Dictionary<string, PlayerAvatar> playerIds)
@@ -335,9 +344,18 @@ namespace AIMonsters
                 ["from"] = (object)line.Player == null ? "Robe" : !line.Player ? "someone" : LabelOf(line.Player),
                 ["text"] = line.Text,
             }));
+            var you = new JObject
+            {
+                ["mode"] = AllyRobe.CurrentMode.ToString().ToLowerInvariant(),
+                ["fight"] = !AllyRobe.Peaceful,
+            };
+            if (AllyRobe.CurrentMode == AllyRobe.Mode.Guide)
+            {
+                you["guide_to"] = AllyRobe.GuideToTruck ? "truck" : AllyRobe.GuideTarget ? LabelOf(AllyRobe.GuideTarget) : null;
+            }
             var root = new JObject
             {
-                ["you"] = new JObject { ["mode"] = AllyRobe.CurrentMode.ToString().ToLowerInvariant() },
+                ["you"] = you,
                 ["players"] = players,
                 ["monsters"] = enemies,
                 ["chat"] = chat,
@@ -361,18 +379,46 @@ namespace AIMonsters
                 Plugin.Log.LogWarning($"AI(味方)の返事を読めませんでした: {e.Message}: {reply}");
                 return;
             }
-            string command = (root.Value<string>("command") ?? "none").Trim().ToLowerInvariant();
+            string command = (Text(root, "command") ?? "none").Trim().ToLowerInvariant();
+            var fight = root["fight"]?.Type == JTokenType.Boolean ? root.Value<bool?>("fight") : null;
+            if (fight != null)
+            {
+                AllyRobe.Peaceful = !fight.Value;
+                if (AllyRobe.Peaceful)
+                {
+                    // 「攻撃しないで」: 振りかぶっている攻撃も取り消し、攻撃中ならやめてついていく
+                    AllyRobe.CancelAttack();
+                    if (AllyRobe.CurrentMode == AllyRobe.Mode.Attack)
+                    {
+                        AllyRobe.CurrentMode = AllyRobe.Mode.Follow;
+                        AllyRobe.OrderedTarget = null;
+                    }
+                }
+            }
             switch (command)
             {
                 case "follow":
                 {
-                    string label = root.Value<string>("follow_player");
-                    if (label != null && playerIds.TryGetValue(label, out var player) && player && !player.isDisabled)
+                    var player = ResolvePlayer(Text(root, "follow_player"), playerIds);
+                    if (player)
                     {
                         AllyRobe.Leader = player;
                     }
                     AllyRobe.CurrentMode = AllyRobe.Mode.Follow;
                     AllyRobe.OrderedTarget = null;
+                    break;
+                }
+                case "guide":
+                {
+                    string to = Text(root, "guide_to")?.Trim();
+                    bool toTruck = string.IsNullOrEmpty(to) || to.Equals("truck", StringComparison.OrdinalIgnoreCase);
+                    var target = toTruck ? null : ResolvePlayer(to, playerIds);
+                    var speaker = LastSpeaker(lastSeq, out bool japanese);
+                    var forPlayer = ResolvePlayer(Text(root, "guide_for"), playerIds) ?? speaker;
+                    if ((toTruck || target) && !AllyRobe.StartGuide(toTruck, target, forPlayer, japanese))
+                    {
+                        Plugin.Verbose($"味方のローブ: 案内の目的地({to ?? "truck"})が見つかりません");
+                    }
                     break;
                 }
                 case "wait":
@@ -386,6 +432,7 @@ namespace AIMonsters
                     {
                         AllyRobe.OrderedTarget = enemy;
                         AllyRobe.CurrentMode = AllyRobe.Mode.Attack;
+                        AllyRobe.Peaceful = false; // 「～を倒して」で戦う態勢に戻る
                     }
                     break;
                 }
@@ -402,7 +449,95 @@ namespace AIMonsters
                     Remember(null, say, lastSeq);
                 }
             }
-            Plugin.Verbose($"味方のローブ: 返事「{say}」、指示 {command}、今の動き {AllyRobe.CurrentMode}");
+            Plugin.Verbose($"味方のローブ: 返事「{say}」、指示 {command}、今の動き {AllyRobe.CurrentMode}、戦う {!AllyRobe.Peaceful}");
+        }
+
+        /// <summary>JSON の値を文字列で読む(数値などで返ってきても読めるように)。null なら null。</summary>
+        private static string Text(JObject root, string key)
+        {
+            var token = root[key];
+            return token == null || token.Type == JTokenType.Null ? null : token.ToString();
+        }
+
+        /// <summary>
+        /// AI が返したプレイヤーの指定(P1 などの番号、またはチャットに書かれた名前・名前の一部)から、プレイヤーを探す。
+        /// 名前は AI に送らず、ここ(ホスト)で照らし合わせる。ひらがな・カタカナ、全角・半角、大文字・小文字は区別しない。
+        /// </summary>
+        private static PlayerAvatar ResolvePlayer(string text, Dictionary<string, PlayerAvatar> playerIds)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+            text = text.Trim();
+            if (playerIds.TryGetValue(text, out var listed) && listed && !listed.isDisabled)
+            {
+                return listed;
+            }
+            var alive = SemiFunc.PlayerGetList().Where(p => p && !p.isDisabled).ToList();
+            foreach (var player in alive)
+            {
+                if (Labels.TryGetValue(player, out var label) && string.Equals(label, text, StringComparison.OrdinalIgnoreCase))
+                {
+                    return player;
+                }
+            }
+            string key = NormalizeName(text);
+            if (key.Length == 0)
+            {
+                return null;
+            }
+            PlayerAvatar best = null;
+            int bestScore = 0;
+            foreach (var player in alive)
+            {
+                string name = NormalizeName(player.playerName ?? "");
+                if (name.Length == 0)
+                {
+                    continue;
+                }
+                // 完全に一致 > 先頭が一致 > 一部が一致(「りーたんさん」のように敬称がついていても見つける)
+                int score = name == key ? 3 : name.StartsWith(key, StringComparison.Ordinal) ? 2
+                    : name.Contains(key) || key.Contains(name) ? 1 : 0;
+                if (score > bestScore)
+                {
+                    best = player;
+                    bestScore = score;
+                }
+            }
+            return best;
+        }
+
+        private static string NormalizeName(string text)
+        {
+            var builder = new System.Text.StringBuilder();
+            foreach (char c in text.Normalize(System.Text.NormalizationForm.FormKC).ToLowerInvariant())
+            {
+                if (char.IsWhiteSpace(c))
+                {
+                    continue;
+                }
+                // カタカナ → ひらがな
+                builder.Append(c >= 'ァ' && c <= 'ヶ' ? (char)(c - 0x60) : c);
+            }
+            return builder.ToString();
+        }
+
+        /// <summary>送った会話のうち、最後に話したプレイヤー(案内される人の既定)と、その発言が日本語か。</summary>
+        private static PlayerAvatar LastSpeaker(int lastSeq, out bool japanese)
+        {
+            japanese = false;
+            for (int i = History.Count - 1; i >= 0; i--)
+            {
+                var line = History[i];
+                if (line.Seq > lastSeq || (object)line.Player == null)
+                {
+                    continue;
+                }
+                japanese = !IsAscii(line.Text);
+                return line.Player && !line.Player.isDisabled ? line.Player : null;
+            }
+            return null;
         }
 
         /// <summary>レベルが変わったとき。</summary>

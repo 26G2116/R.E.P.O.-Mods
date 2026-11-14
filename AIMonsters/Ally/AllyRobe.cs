@@ -34,7 +34,33 @@ namespace AIMonsters
             Follow,
             Wait,
             Attack,
+            /// <summary>案内: 先に歩いて、プレイヤーを目的地(トラック・ほかのプレイヤー)へ連れていく。</summary>
+            Guide,
         }
+
+        /// <summary>自分からは敵を攻撃しない(「敵を攻撃しないで」)。攻撃の指示・「戦って」で戻る。</summary>
+        internal static bool Peaceful;
+
+        /// <summary>案内の目的地がトラックか(false ならプレイヤー GuideTarget)。</summary>
+        internal static bool GuideToTruck { get; private set; }
+        internal static PlayerAvatar GuideTarget { get; private set; }
+        /// <summary>案内される人(この人が離れたら待つ。着いたらこの人についていく)。</summary>
+        private static PlayerAvatar guideFor;
+        private static float guideUntil;
+        private static bool guideJapanese;
+        /// <summary>案内される人を迎えに行っている(遠くにいる人をまずそばまで迎えに行く)。</summary>
+        private static bool guideGathering;
+
+        private const float GuideTimeout = 180f;
+        /// <summary>案内される人がこれより離れたら止まって待つ。</summary>
+        private const float GuideWaitDistance = 8f;
+        /// <summary>案内される人がこれより離れたら迎えに戻る。迎えに行ったら GuideGatherDistance まで近づく。</summary>
+        private const float GuideLostDistance = 15f;
+        private const float GuideGatherDistance = 4f;
+        private const float GuideArriveDistance = 3.5f;
+        /// <summary>着いたとみなす、案内される人と目的地の距離。</summary>
+        private const float GuidePlayerArriveDistance = 6f;
+        private const float GuideSpeed = 4.5f;
 
         /// <summary>今のレベルの味方ローブ(いなければ null)。</summary>
         internal static EnemyRobe Ally { get; private set; }
@@ -406,6 +432,7 @@ namespace AIMonsters
             {
                 return;
             }
+            UpdateGuide(Director.EnemyPosition(enemy));
             attackTarget = ChooseTarget(enemy);
             if (attackTarget && Time.time >= nextAttack)
             {
@@ -448,10 +475,135 @@ namespace AIMonsters
 
         private static string Name(Enemy enemy) => enemy.EnemyParent ? enemy.EnemyParent.enemyName : enemy.name;
 
-        /// <summary>攻撃しに行く敵(指示で決めた敵、なければ近くの敵)。待機中は攻撃しに行かない。</summary>
+        // ================================================================
+        // 案内
+        // ================================================================
+
+        /// <summary>
+        /// 案内を始める。toTruck なら トラックへ、そうでなければ target のところへ。
+        /// forPlayer(案内される人)が離れたら待ち、着いたらその人についていく。
+        /// </summary>
+        internal static bool StartGuide(bool toTruck, PlayerAvatar target, PlayerAvatar forPlayer, bool japanese)
+        {
+            if (toTruck ? !TruckPoint(out _) : (!target || target.isDisabled))
+            {
+                return false;
+            }
+            GuideToTruck = toTruck;
+            GuideTarget = toTruck ? null : target;
+            guideFor = forPlayer && !forPlayer.isDisabled ? forPlayer : Leader;
+            guideUntil = Time.time + GuideTimeout;
+            guideJapanese = japanese;
+            guideGathering = guideFor && Ally
+                && Vector3.Distance(Director.EnemyPosition(Ally.enemy), guideFor.transform.position) > GuideWaitDistance;
+            CurrentMode = Mode.Guide;
+            OrderedTarget = null;
+            return true;
+        }
+
+        /// <summary>自分からの攻撃をやめる(振りかぶっている攻撃のダメージも与えない)。</summary>
+        internal static void CancelAttack()
+        {
+            swingTarget = null;
+            attackTarget = null;
+        }
+
+        private static void EndGuide(bool arrived)
+        {
+            if (guideFor && !guideFor.isDisabled)
+            {
+                Leader = guideFor;
+            }
+            CurrentMode = Mode.Follow;
+            GuideTarget = null;
+            guideFor = null;
+            if (arrived)
+            {
+                AllyChat.SayFixed(guideJapanese ? "着いた。" : "We're here.");
+            }
+            Plugin.Verbose(arrived ? "味方のローブ: 案内の目的地に着きました" : "味方のローブ: 案内をやめました(目的地がない・時間切れ)");
+        }
+
+        /// <summary>トラックの位置(ナビメッシュ上)。</summary>
+        private static bool TruckPoint(out Vector3 point)
+        {
+            point = default;
+            Transform truck = LevelGenerator.Instance && LevelGenerator.Instance.LevelPathTruck
+                ? LevelGenerator.Instance.LevelPathTruck.transform
+                : TruckSafetySpawnPoint.instance ? TruckSafetySpawnPoint.instance.transform : null;
+            if (!truck)
+            {
+                return false;
+            }
+            point = Nav.Sample(truck.position, out var sampled) ? sampled : truck.position;
+            return true;
+        }
+
+        private static bool GuideGoal(out Vector3 goal)
+        {
+            if (GuideToTruck)
+            {
+                return TruckPoint(out goal);
+            }
+            goal = default;
+            if (!GuideTarget || GuideTarget.isDisabled)
+            {
+                return false;
+            }
+            goal = GuideTarget.transform.position;
+            return true;
+        }
+
+        /// <summary>案内中: 着いた・目的地がなくなった・時間切れなら、案内を終えてついていく動きに戻る。</summary>
+        private static void UpdateGuide(Vector3 position)
+        {
+            if (CurrentMode != Mode.Guide)
+            {
+                return;
+            }
+            if (!GuideGoal(out var goal) || Time.time > guideUntil)
+            {
+                EndGuide(false);
+                return;
+            }
+            bool hasFollower = guideFor && !guideFor.isDisabled;
+            float followerDistance = hasFollower ? Vector3.Distance(position, guideFor.transform.position) : 0f;
+            // 迎えに行く: 遠くにいる(見失った)ら戻り、そばまで来たら案内を再開する
+            if (hasFollower && followerDistance > GuideLostDistance)
+            {
+                guideGathering = true;
+            }
+            else if (!hasFollower || followerDistance <= GuideGatherDistance)
+            {
+                guideGathering = false;
+            }
+            // 着いた: ローブが目的地にいて、案内される人も目的地の近くまで来た
+            if (!guideGathering && Vector3.Distance(position, goal) <= GuideArriveDistance
+                && (!hasFollower || Vector3.Distance(guideFor.transform.position, goal) <= GuidePlayerArriveDistance))
+            {
+                EndGuide(true);
+            }
+        }
+
+        /// <summary>案内中に向かう場所(迎えに行く・目的地へ先に歩く。案内される人が少し離れたら null = 止まって待つ)。</summary>
+        private static Vector3? GuideDestination(Vector3 position)
+        {
+            bool hasFollower = guideFor && !guideFor.isDisabled;
+            if (hasFollower && guideGathering)
+            {
+                return guideFor.transform.position;
+            }
+            if (hasFollower && Vector3.Distance(position, guideFor.transform.position) > GuideWaitDistance)
+            {
+                return null;
+            }
+            return GuideGoal(out var goal) ? goal : (Vector3?)null;
+        }
+
+        /// <summary>攻撃しに行く敵(指示で決めた敵、なければ近くの敵)。待機中・案内中・攻撃しないと言われたときは自分から攻撃しに行かない。</summary>
         private static Enemy ChooseTarget(Enemy self)
         {
-            if (CurrentMode == Mode.Wait)
+            if (CurrentMode == Mode.Wait || CurrentMode == Mode.Guide)
             {
                 return null;
             }
@@ -467,7 +619,7 @@ namespace AIMonsters
                 OrderedTarget = null;
             }
             var director = EnemyDirector.instance;
-            if (!director || AttackRange.Value <= 0f)
+            if (Peaceful || !director || AttackRange.Value <= 0f)
             {
                 return null;
             }
@@ -526,9 +678,19 @@ namespace AIMonsters
                 Vector3 position = Director.EnemyPosition(enemy);
                 __instance.stateTimer = Mathf.Max(__instance.stateTimer, 5f);
                 Vector3? destination = null;
+                float? speed = null;
                 if (attackTarget)
                 {
                     destination = Director.EnemyPosition(attackTarget);
+                }
+                else if (CurrentMode == Mode.Guide)
+                {
+                    // 案内: 目的地へ先に歩く。案内される人が離れたら止まって待ち、見失ったら迎えに戻る
+                    destination = GuideDestination(position);
+                    if (destination.HasValue)
+                    {
+                        speed = GuideSpeed;
+                    }
                 }
                 else if (CurrentMode != Mode.Wait && Leader && !Leader.isDisabled)
                 {
@@ -542,12 +704,16 @@ namespace AIMonsters
                 if (destination.HasValue)
                 {
                     agent.SetDestination(destination.Value);
-                    // 遠いときは走る(探して歩くときの速さ 3 では、プレイヤーに置いていかれる)
+                    // 遠いときは走る(探して歩くときの速さ 3 では、プレイヤーに置いていかれる)。案内中は人が追いつける速さ
                     float distance = Vector3.Distance(position, destination.Value);
-                    if (distance > 6f)
+                    if (speed == null && distance > 6f)
                     {
-                        agent.OverrideAgent(6f, 12f, 0.2f);
-                        enemy.Rigidbody.OverrideFollowPosition(0.2f, 6f, -1f);
+                        speed = 6f;
+                    }
+                    if (speed != null)
+                    {
+                        agent.OverrideAgent(speed.Value, 12f, 0.2f);
+                        enemy.Rigidbody.OverrideFollowPosition(0.2f, speed.Value, -1f);
                     }
                 }
                 else
@@ -696,6 +862,10 @@ namespace AIMonsters
             Leader = null;
             CurrentMode = Mode.Follow;
             OrderedTarget = null;
+            Peaceful = false;
+            GuideToTruck = false;
+            GuideTarget = null;
+            guideFor = null;
             attackTarget = null;
             swingTarget = null;
             pendingSpawn = false;
