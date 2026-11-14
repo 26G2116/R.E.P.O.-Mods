@@ -12,7 +12,7 @@
 >
 > Documentation is in Japanese. MIT licensed. Not on Thunderstore.
 
-> **開発中です。** ゲーム内でまだ確かめていない機能があります。おかしな動きを見つけたら [Issues](https://github.com/26G2116/REPO-Mods/issues) で教えてください。
+> **開発中です。** ゲーム内でまだ確かめていない機能があります。おかしな動きを見つけたら [Issues](https://github.com/26G2116/R.E.P.O.-Mods/issues) で教えてください。
 
 ## MOD の一覧
 | MOD | 版 | 内容 | 入れる人 |
