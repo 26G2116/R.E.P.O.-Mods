@@ -78,7 +78,8 @@ namespace AIMonsters
             return robe;
         }
 
-        public bool Matches(Enemy enemy) => Robe(enemy);
+        /// <summary>味方のローブは敵の AI の対象にしない。</summary>
+        public bool Matches(Enemy enemy) => Robe(enemy) && !AllyRobe.IsAlly(enemy);
 
         public bool Sees(Enemy enemy, PlayerAvatar player) => Director.VisionSees(enemy, player);
 

@@ -19,7 +19,7 @@ namespace AIMonsters
     {
         public const string PluginGuid = "shunm.AIMonsters";
         public const string PluginName = "AIMonsters";
-        public const string PluginVersion = "0.4.0";
+        public const string PluginVersion = "0.5.0";
 
         private const string General = "0. 全体";
 
@@ -59,6 +59,7 @@ namespace AIMonsters
             LoomDriver.Bind(Config);
             RobeDriver.Bind(Config);
             CleanupCrewDriver.Bind(Config);
+            AllyRobe.Bind(Config);
 
             Runner.Create();
             harmony = new Harmony(PluginGuid);
@@ -116,6 +117,7 @@ namespace AIMonsters
             try
             {
                 Director.Tick();
+                AllyRobe.Tick();
             }
             catch (Exception e)
             {
