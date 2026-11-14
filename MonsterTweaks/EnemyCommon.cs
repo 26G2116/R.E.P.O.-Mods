@@ -23,6 +23,8 @@ namespace MonsterTweaks
             internal string Name;
             internal ConfigEntry<bool> StunImmune;
             internal ConfigEntry<float> Speed;
+            /// <summary>レベルの敵を選ぶときの候補に入れるか(「有効」とは関係なく効く)。</summary>
+            internal ConfigEntry<bool> Spawn;
             /// <summary>個別の変更がある敵の「有効」。OFF なら共通設定も効かない(個別の変更がない敵は null)。</summary>
             internal ConfigEntry<bool> SectionEnabled;
 
@@ -66,6 +68,9 @@ namespace MonsterTweaks
         };
 
         private static readonly List<Entry> Entries = new List<Entry>();
+
+        /// <summary>設定の一覧(SpawnFilter から使う)。</summary>
+        internal static IReadOnlyList<Entry> All => Entries;
 
         /// <summary>個別の変更がある敵の「有効」(各敵の Bind のあとに呼ぶこと)。</summary>
         private static ConfigEntry<bool> SectionEnabledOf(Type type)
@@ -112,6 +117,9 @@ namespace MonsterTweaks
                     Name = name,
                     SectionEnabled = SectionEnabledOf(type),
                     StunImmune = cfg.Bind(sec, "スタン無効", stunImmune, $"{name}が銃や爆発、投げつけなどでスタンしない。押されはするが倒れない{note}(クラス名 {type.Name})"),
+                    Spawn = cfg.Bind(sec, "出現させる", true,
+                        $"OFF にすると、{name}がレベルの敵に選ばれなくなる(次にレベルを作るときから。ホストの設定で決まる)。" +
+                        "このセクションの「有効」とは関係なく効く。ほかの MOD やコマンドで直接出した敵は出る"),
                     Speed = Util.Float(cfg, sec, "移動速度倍率(共通)", 1f, 0.2f, 5f,
                         $"{name}の移動の速さの倍率(1 でゲーム本来と同じ)。個別の速度設定がある場合はそれにさらにかかる。" +
                         "ナビメッシュを使わない動き(飛びかかり・空中移動など)には効かないことがある" + note),
