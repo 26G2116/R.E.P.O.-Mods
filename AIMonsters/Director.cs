@@ -84,7 +84,25 @@ namespace AIMonsters
             internal int Id;
             internal float LastSeen;
             internal Order Order;
+            /// <summary>最後に見た位置(上空に待機させられる前の位置。引き継ぎに使う)。</summary>
+            internal Vector3 LastPosition;
         }
+
+        /// <summary>上空へ待機させられた敵の、引き継ぎ待ち(MonsterTweaks のクリーンアップクルーの分身方式)。</summary>
+        private sealed class Handoff
+        {
+            internal IEnemyDriver Driver;
+            internal int Id;
+            internal Order Order;
+            internal Vector3 Position;
+            internal float Time;
+            internal float LastSeen;
+        }
+
+        private static readonly List<Handoff> Handoffs = new List<Handoff>();
+
+        /// <summary>上空で待機しているのを最後に見た時刻(入れ替わりで出てきた体を、距離だけでなく「さっきまで待機していた」で見分ける)。</summary>
+        private static readonly Dictionary<Enemy, float> LastParked = new Dictionary<Enemy, float>();
 
         private static readonly List<Controlled> Controlleds = new List<Controlled>();
         private static readonly AzureChannel Channel = new AzureChannel("敵");
@@ -128,6 +146,8 @@ namespace AIMonsters
                 // レベルが変わった(前のレベルの敵はもういない)
                 level = LevelGenerator.Instance;
                 ReleaseAll();
+                Handoffs.Clear();
+                LastParked.Clear();
                 generation++;
                 nextId = 1;
             }
@@ -167,17 +187,35 @@ namespace AIMonsters
         private static void Scan()
         {
             // やめる: 消えた・倒された・設定で外された・しばらく誰も見えない
+            Handoffs.RemoveAll(h => Time.time - h.Time > 1.5f);
+            foreach (var stale in LastParked.Where(p => !p.Key || Time.time - p.Value > 5f).Select(p => p.Key).ToList())
+            {
+                LastParked.Remove(stale);
+            }
             foreach (var c in Controlleds.ToList())
             {
-                bool gone = !c.Enemy || !c.Enemy.EnemyParent || !c.Enemy.EnemyParent.Spawned
+                bool parked = c.Enemy && Parked(c.Enemy);
+                bool gone = !c.Enemy || !c.Enemy.EnemyParent || !c.Enemy.EnemyParent.Spawned || parked
                             || c.Enemy.CurrentState == EnemyState.Despawn || Dead(c.Enemy) || !c.Driver.Enabled;
-                if (!gone && SeesAnyone(c.Driver, c.Enemy))
+                if (!gone)
                 {
-                    c.LastSeen = Time.time;
+                    c.LastPosition = EnemyPosition(c.Enemy);
+                    if (SeesAnyone(c.Driver, c.Enemy))
+                    {
+                        c.LastSeen = Time.time;
+                    }
                 }
                 if (gone || Time.time - c.LastSeen > ReleaseSeconds.Value)
                 {
-                    Plugin.Verbose($"{Label(c)}: {(gone ? "いなくなった" : "見失った")}ので、AI をやめます");
+                    if (parked && c.Driver.Enabled)
+                    {
+                        // 上空に待機させられた = ほかの MOD が別の体と入れ替えた。近くに出てきた体へ番号と指示を引き継ぐ
+                        Handoffs.Add(new Handoff
+                        {
+                            Driver = c.Driver, Id = c.Id, Order = c.Order, Position = c.LastPosition, Time = Time.time, LastSeen = c.LastSeen,
+                        });
+                    }
+                    Plugin.Verbose($"{Label(c)}: {(parked ? "入れ替わった" : gone ? "いなくなった" : "見失った")}ので、AI をやめます");
                     Release(c);
                 }
             }
@@ -191,17 +229,45 @@ namespace AIMonsters
             foreach (var parent in director.enemiesSpawned)
             {
                 var enemy = parent ? parent.Enemy : null;
+                if (enemy && Parked(enemy))
+                {
+                    LastParked[enemy] = Time.time;
+                    continue;
+                }
                 if (!enemy || !parent.Spawned || enemy.CurrentState == EnemyState.Despawn || Dead(enemy)
                     || Controlleds.Any(c => c.Enemy == enemy))
                 {
                     continue;
                 }
                 var driver = Drivers.FirstOrDefault(d => d.Enabled && d.Matches(enemy));
-                if (driver == null || !SeesAnyone(driver, enemy))
+                if (driver == null)
                 {
                     continue;
                 }
-                var c = new Controlled { Enemy = enemy, Driver = driver, Id = nextId++, LastSeen = Time.time };
+                Vector3 position = EnemyPosition(enemy);
+                bool justUnparked = LastParked.TryGetValue(enemy, out float parkedAt) && Time.time - parkedAt <= 1.5f;
+                var handoff = justUnparked
+                    ? Handoffs.Where(h => h.Driver == driver && Vector3.Distance(h.Position, position) <= 4f)
+                        .OrderBy(h => Vector3.Distance(h.Position, position)).FirstOrDefault()
+                    : null;
+                if (handoff != null)
+                {
+                    // 入れ替わった体: 見えていなくても、前の体の番号と指示のまま続ける
+                    Handoffs.Remove(handoff);
+                    var next = new Controlled { Enemy = enemy, Driver = driver, Id = handoff.Id, LastSeen = handoff.LastSeen, LastPosition = position };
+                    Controlleds.Add(next);
+                    Plugin.Verbose($"{Label(next)}: 入れ替わった体に AI を引き継ぎます");
+                    if (handoff.Order != null)
+                    {
+                        SetOrder(next, handoff.Order);
+                    }
+                    continue;
+                }
+                if (!SeesAnyone(driver, enemy))
+                {
+                    continue;
+                }
+                var c = new Controlled { Enemy = enemy, Driver = driver, Id = nextId++, LastSeen = Time.time, LastPosition = position };
                 Controlleds.Add(c);
                 Plugin.Verbose($"{Label(c)}: プレイヤーを見つけたので、AI に任せます");
                 // 見つけた直後はすぐ判断させる
@@ -211,6 +277,9 @@ namespace AIMonsters
 
         private static bool SeesAnyone(IEnemyDriver driver, Enemy enemy) =>
             SemiFunc.PlayerGetList().Any(p => p && !p.isDisabled && driver.Sees(enemy, p));
+
+        /// <summary>マップのはるか上空にいる(MonsterTweaks のクリーンアップクルーの分身が待機している)。AI の対象にしない。</summary>
+        private static bool Parked(Enemy enemy) => EnemyPosition(enemy).y > 1000f;
 
         private static bool Dead(Enemy enemy) => enemy.HasHealth && enemy.Health && enemy.Health.healthCurrent <= 0;
 
@@ -503,7 +572,9 @@ namespace AIMonsters
             foreach (var token in orders.OfType<JObject>())
             {
                 int? id = token.Value<int?>("enemy");
-                if (id == null || !snapshot.Enemies.TryGetValue(id.Value, out var c) || !Controlleds.Contains(c))
+                // 番号で今の敵を探す(送ったあとに入れ替わった体にも、引き継いだ番号で届く)
+                var c = id == null || !snapshot.Enemies.ContainsKey(id.Value) ? null : Controlleds.FirstOrDefault(x => x.Id == id.Value);
+                if (c == null)
                 {
                     continue;
                 }
