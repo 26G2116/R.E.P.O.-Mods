@@ -18,7 +18,7 @@
 ## 設定(AutoTranslatorConfig.ini)
 - `Endpoint=` を空にして、機械翻訳を使わない(プレイヤー名やチャットを外部に送らない)
 - `Language=ja` / `FromLanguage=en`
-- `EnableIMGUI=True`(BanEnforcer の画面や LateJoinNow の部屋情報表示に必要)
+- `EnableIMGUI=True`(LateJoinNow の部屋情報表示に必要)
 
 ## ゲーム中の操作(XUnity の機能)
 - `Alt + T`: 翻訳の ON / OFF(元の英語を確認したいとき)

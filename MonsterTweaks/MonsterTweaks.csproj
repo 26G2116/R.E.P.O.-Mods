@@ -79,4 +79,7 @@
     <Message Importance="high" Text="-> $(TsDistDir)\$(TsAuthor)-$(TsName)-$(Version).zip を作成しました" />
   </Target>
 
+  <!-- AssemblyPublicizer が Windows にブロックされるとき: dotnet build -p:UseCachedPublicized=true -->
+  <Import Project="..\Tools\CachedPublicize.targets" Condition="'$(UseCachedPublicized)' == 'true'" />
+
 </Project>

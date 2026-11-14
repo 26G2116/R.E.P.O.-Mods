@@ -8,6 +8,9 @@
   <Target Name="Publicize" AfterTargets="ResolveReferences" BeforeTargets="FindReferenceAssembliesForReferences">
     <PropertyGroup>
       <_CachedPublicizedDir>$(IntermediateOutputPath)publicized\</_CachedPublicizedDir>
+      <!-- この構成(Debug / Release)のがなければ、もう一方の構成のを使う -->
+      <_CachedPublicizedDir Condition="!Exists('$(_CachedPublicizedDir)') And Exists('$(BaseIntermediateOutputPath)Release\publicized\')">$(BaseIntermediateOutputPath)Release\publicized\</_CachedPublicizedDir>
+      <_CachedPublicizedDir Condition="!Exists('$(_CachedPublicizedDir)') And Exists('$(BaseIntermediateOutputPath)Debug\publicized\')">$(BaseIntermediateOutputPath)Debug\publicized\</_CachedPublicizedDir>
       <GeneratedIgnoresAccessChecksToFile Condition="'$(GeneratedIgnoresAccessChecksToFile)' == ''">$(IntermediateOutputPath)$(MSBuildProjectName).IgnoresAccessChecksTo.cs</GeneratedIgnoresAccessChecksToFile>
     </PropertyGroup>
     <ItemGroup>
