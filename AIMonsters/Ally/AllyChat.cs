@@ -113,6 +113,62 @@ namespace AIMonsters
         // 聞く
         // ================================================================
 
+        // プレイヤーが自分で打った発言だけを読む。ほかの MOD(FloorRoles のダイスやチャージの「３」「Charge start!」など)が
+        // ホストからプレイヤーの代わりにしゃべらせた文や、ゲームの「乗っ取られた」発言(惚れ薬など)は読まない。
+        // - ホスト自身の発言: チャット欄から送った(ChatManager.MessageSend で _possessed が false)ときだけ
+        // - ほかの人の発言: その人の PC から届いたときだけ(ホストが代わりに送ったものは除く)
+
+        /// <summary>ホストがチャット欄から自分で送っている最中か。</summary>
+        private static bool typingLocal;
+        /// <summary>ChatMessageSendRPC を処理している最中か、とその送り主が発言者本人か・ホスト自身か。</summary>
+        private static bool inChatRpc;
+        private static bool rpcFromOwner;
+        private static bool rpcFromLocal;
+
+        [HarmonyPatch(typeof(ChatManager), nameof(ChatManager.MessageSend))]
+        private static class TypedPatch
+        {
+            private static void Prefix(bool _possessed)
+            {
+                typingLocal = !_possessed;
+            }
+
+            private static Exception Finalizer(Exception __exception)
+            {
+                typingLocal = false;
+                return __exception;
+            }
+        }
+
+        [HarmonyPatch(typeof(PlayerAvatar), nameof(PlayerAvatar.ChatMessageSendRPC))]
+        private static class ChatRpcPatch
+        {
+            private static void Prefix(PlayerAvatar __instance, PhotonMessageInfo _info)
+            {
+                var sender = _info.Sender;
+                var owner = __instance && __instance.photonView ? __instance.photonView.Owner : null;
+                inChatRpc = true;
+                rpcFromOwner = sender != null && owner != null && sender.ActorNumber == owner.ActorNumber;
+                rpcFromLocal = sender != null && sender.IsLocal;
+            }
+
+            private static Exception Finalizer(Exception __exception)
+            {
+                inChatRpc = false;
+                return __exception;
+            }
+        }
+
+        /// <summary>今しゃべられている文が、プレイヤーが自分で打ったものか。</summary>
+        private static bool TypedByPlayer()
+        {
+            if (inChatRpc)
+            {
+                return rpcFromOwner && (!rpcFromLocal || typingLocal);
+            }
+            return typingLocal; // シングルプレイ(RPC を通らずに直接しゃべる)
+        }
+
         /// <summary>
         /// チャットの発言。マルチプレイでは ChatMessageSendRPC から、シングルプレイでは直接呼ばれる
         /// (ホストには全員の発言が届く)。
@@ -124,7 +180,10 @@ namespace AIMonsters
             {
                 try
                 {
-                    Hear(__instance, _message);
+                    if (TypedByPlayer())
+                    {
+                        Hear(__instance, _message);
+                    }
                 }
                 catch (Exception e)
                 {

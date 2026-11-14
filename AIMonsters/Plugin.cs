@@ -19,7 +19,7 @@ namespace AIMonsters
     {
         public const string PluginGuid = "shunm.AIMonsters";
         public const string PluginName = "AIMonsters";
-        public const string PluginVersion = "0.6.4";
+        public const string PluginVersion = "0.6.5";
 
         private const string General = "0. 全体";
 
