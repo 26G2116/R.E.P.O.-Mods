@@ -604,10 +604,15 @@ namespace AIMonsters
             {
                 marker.Teleport(head, Quaternion.identity);
             }
-            else if (rb)
+            else if (rb && !rb.isKinematic)
             {
                 rb.linearVelocity = offset * 8f;
                 rb.angularVelocity = Vector3.up * 2f;
+            }
+            else if (rb && marker.spawned)
+            {
+                // 物理が止まっている(kinematic)間は速度を設定できない(毎フレーム警告が出る)ので、位置で動かす
+                rb.MovePosition(Vector3.Lerp(marker.centerPoint, head, Mathf.Clamp01(Time.deltaTime * 8f)) + (rb.position - marker.centerPoint));
             }
         }
 
