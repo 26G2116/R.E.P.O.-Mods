@@ -3,7 +3,6 @@ using BepInEx.Configuration;
 using HarmonyLib;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
-using UnityEngine.AI;
 
 namespace AIMonsters
 {
@@ -154,7 +153,7 @@ namespace AIMonsters
             if (Drives(order) && !WantsPlayer(order) && (!shadow.playerTarget || shadow.playerTarget.isDisabled)
                 && state != EnemyShadow.State.Spawn)
             {
-                var nearest = NearestPlayer(Director.EnemyPosition(enemy));
+                var nearest = Nav.NearestPlayer(Director.EnemyPosition(enemy));
                 if (nearest)
                 {
                     shadow.UpdatePlayerTarget(nearest);
@@ -250,7 +249,7 @@ namespace AIMonsters
                             if (Time.time >= memo.NextPoint)
                             {
                                 memo.NextPoint = Time.time + 0.5f;
-                                memo.HasPoint = BehindPoint(order.Player, 4f, out memo.Point);
+                                memo.HasPoint = Nav.BehindPoint(order.Player, 4f, out memo.Point);
                             }
                             // 回り込み先に着く(または相手のすぐ近くにいる)までは回り込み先へ。着いたらゲームどおり相手へ
                             if (memo.HasPoint && Vector3.Distance(position, memo.Point) > 1.5f && __instance.distanceFromPlayer > 2.5f)
@@ -263,7 +262,7 @@ namespace AIMonsters
                         if (Time.time >= memo.NextPoint)
                         {
                             memo.NextPoint = Time.time + 1f;
-                            memo.HasPoint = AwayPoint(position, 8f, out memo.Point);
+                            memo.HasPoint = Nav.AwayPoint(position, 8f, out memo.Point);
                         }
                         if (memo.HasPoint)
                         {
@@ -280,63 +279,6 @@ namespace AIMonsters
                         break;
                 }
             }
-        }
-
-        /// <summary>相手の背後 distance(m)くらいで、歩ける地点。</summary>
-        private static bool BehindPoint(PlayerAvatar player, float distance, out Vector3 point)
-        {
-            var vision = player.PlayerVisionTarget ? player.PlayerVisionTarget.VisionTransform : player.transform;
-            Vector3 back = -Vector3.ProjectOnPlane(vision.forward, Vector3.up).normalized;
-            if (back.sqrMagnitude < 0.01f)
-            {
-                back = -player.transform.forward;
-            }
-            return Sample(player.transform.position + back * distance, out point);
-        }
-
-        private static PlayerAvatar NearestPlayer(Vector3 from)
-        {
-            PlayerAvatar nearest = null;
-            float best = float.MaxValue;
-            foreach (var player in SemiFunc.PlayerGetList())
-            {
-                if (!player || player.isDisabled)
-                {
-                    continue;
-                }
-                float d = Vector3.Distance(from, player.transform.position);
-                if (d < best)
-                {
-                    best = d;
-                    nearest = player;
-                }
-            }
-            return nearest;
-        }
-
-        /// <summary>一番近いプレイヤーから離れる向きに distance(m)くらいで、歩ける地点。</summary>
-        private static bool AwayPoint(Vector3 from, float distance, out Vector3 point)
-        {
-            var nearest = NearestPlayer(from);
-            Vector3 away = nearest ? Vector3.ProjectOnPlane(from - nearest.transform.position, Vector3.up).normalized : Vector3.zero;
-            if (away.sqrMagnitude < 0.01f)
-            {
-                away = Random.insideUnitSphere;
-                away.y = 0f;
-                away.Normalize();
-            }
-            return Sample(from + away * distance, out point);
-        }
-
-        private static bool Sample(Vector3 desired, out Vector3 point)
-        {
-            if (NavMesh.SamplePosition(desired, out var hit, 3f, NavMesh.AllAreas))
-            {
-                point = hit.position;
-                return true;
-            }
-            point = desired;
-            return false;
         }
     }
 }

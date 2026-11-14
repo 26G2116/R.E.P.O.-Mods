@@ -203,7 +203,6 @@ namespace AIMonsters
                 }
                 var c = new Controlled { Enemy = enemy, Driver = driver, Id = nextId++, LastSeen = Time.time };
                 Controlleds.Add(c);
-                Mark(enemy, true);
                 Plugin.Verbose($"{Label(c)}: プレイヤーを見つけたので、AI に任せます");
                 // 見つけた直後はすぐ判断させる
                 nextRequest = Mathf.Min(nextRequest, Time.time);
@@ -234,6 +233,8 @@ namespace AIMonsters
         private static void SetOrder(Controlled c, Order order)
         {
             c.Order = order;
+            // 目印は、AI の指示で動かしている間だけ(返事待ち・期限切れ・roam の間は、ほかの MOD の強化もそのまま動く)
+            Mark(c.Enemy, order != null && order.Action != "roam");
             Guard(c, () => c.Driver.Apply(c.Enemy, order));
         }
 

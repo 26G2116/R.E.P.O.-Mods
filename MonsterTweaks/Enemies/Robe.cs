@@ -271,6 +271,11 @@ namespace MonsterTweaks
         {
             private static bool Prefix(EnemyRobe __instance)
             {
+                // AIMonsters が動かしている間は、見つけたときの判断を任せる
+                if (Util.AIControlled(__instance.enemy))
+                {
+                    return true;
+                }
                 // 届かないと分かって無視している相手は、見えても狙わない(本来の突進がすぐ始まって堂々巡りになるため)
                 if (Active && __instance.enemy && __instance.enemy.Vision && Ignored(__instance, __instance.enemy.Vision.onVisionTriggeredPlayer)
                     && __instance.currentState != EnemyRobe.State.Attack)
@@ -325,6 +330,12 @@ namespace MonsterTweaks
                 }
                 var brain = Brains.GetOrCreateValue(__instance);
                 brain.Driving = false;
+                if (Util.AIControlled(__instance.enemy))
+                {
+                    // AIMonsters が動かしている間は、忍び寄り・乗り換えなどの判断をしない
+                    brain.Prey = null;
+                    return;
+                }
                 var state = __instance.currentState;
 
                 // 届かない相手を追っている(物の下をのぞき込んでいる)なら、見えている届く人へ乗り換える

@@ -8,6 +8,12 @@ namespace MonsterTweaks
         /// <summary>敵の AI を動かす側(ホスト、またはシングルプレイ)か。</summary>
         internal static bool IsAuthority => SemiFunc.IsMasterClientOrSingleplayer();
 
+        /// <summary>
+        /// AIMonsters(別の MOD)が AI で動かしている敵か。AIMonsters は動かしている敵に AIMonstersControlled をつける。
+        /// 型を参照しないので、AIMonsters が入っていなくても動く。動かしている間は行動を変える強化を止める(能力の倍率はそのまま)。
+        /// </summary>
+        internal static bool AIControlled(Component enemy) => enemy && enemy.GetComponent("AIMonstersControlled");
+
         internal static ConfigEntry<float> Float(ConfigFile cfg, string section, string key, float value, float min, float max, string description)
         {
             return cfg.Bind(section, key, value, new ConfigDescription(description, new AcceptableValueRange<float>(min, max)));
