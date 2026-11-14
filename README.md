@@ -7,6 +7,7 @@
 > - **FloorRoles** – pick a role (Carrier / Fighter / Special) in the truck before each level for stat rewards and role traits; per-player shop budgets and shop duels.
 > - **MonsterTweaks** – heavy behaviour buffs for 27 monsters, plus per-monster stun immunity and move speed for all 31.
 > - **DroneTweaks** – brings removed drones and orbs back to the shop and gives them new effects (revive, invincibility, valuable repair, item conversion).
+> - **AIMonsters** – an Azure OpenAI model directs Robe, Loom and Cleanup Crew once they spot a player; break a big monster orb while holding it to summon a chatty ally Robe.
 > - **LoadProgress** – shows every player's loading progress in multiplayer.
 >
 > Documentation is in Japanese. MIT licensed. Not on Thunderstore.
@@ -17,8 +18,9 @@
 | MOD | 版 | 内容 | 入れる人 |
 |---|---|---|---|
 | [**FloorRoles**](FloorRoles/Package/README.md) | 0.3.6 | レベルごとに役職を選ぶ。ショップの所持金を個人ごとに分ける | ホストだけ |
-| [**MonsterTweaks**](MonsterTweaks/Package/README.md) | 0.10.3 | モンスター 27 体を個別に強化する。全モンスター共通の「スタン無効」「移動速度倍率」 | ホストだけ |
+| [**MonsterTweaks**](MonsterTweaks/Package/README.md) | 0.10.4 | モンスター 27 体を個別に強化する。全モンスター共通の「スタン無効」「移動速度倍率」 | ホストだけ |
 | [**DroneTweaks**](DroneTweaks/Package/README.md) | 0.5.3 | 削除されたドローン・オーブを店に戻し、新しい効果をつける | ホストだけ |
+| [**AIMonsters**](AIMonsters/Package/README.md) | 0.6.0 | Azure OpenAI の AI にローブ・ルーム・クリーンアップクルーを動かさせる。話せる味方のローブを呼べる | ホストだけ |
 | [**LoadProgress**](LoadProgress/Package/README.md) | 0.1.0 | マルチプレイのロード中に、全員のロードの進み具合を 10 段階で表示する | 見たい人 |
 | [Translation](Translation/README.md) | — | ほかの作者の MOD の英語を日本語にする翻訳表(XUnity.AutoTranslator 用) | 使いたい人 |
 
@@ -86,6 +88,7 @@ dotnet build -c Release -p:UseCachedPublicized=true
 | `FloorRoles/` | 役職を選ぶ MOD |
 | `MonsterTweaks/` | モンスターを強化する MOD(`Enemies/` に敵ごとの処理。開発の記録: [Docs/monster_tweaks.md](Docs/monster_tweaks.md)) |
 | `DroneTweaks/` | ドローン・オーブを変える MOD |
+| `AIMonsters/` | Azure OpenAI の AI に敵を動かさせる MOD(仕様: [Docs/ai_monsters.md](Docs/ai_monsters.md)) |
 | `LoadProgress/` | ロードの進み具合を表示する MOD(仕組み: [Docs/loading_flow.md](Docs/loading_flow.md)) |
 | `RepoModTemplate/` | 新しい MOD を作るときのひな形(起動ログ・設定・Harmony パッチのサンプル) |
 | `Translation/` | 日本語化の翻訳表 |
