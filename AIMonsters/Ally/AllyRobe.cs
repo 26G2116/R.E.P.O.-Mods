@@ -27,6 +27,7 @@ namespace AIMonsters
         private static ConfigEntry<int> Damage;
         private static ConfigEntry<float> DamageTaken;
         private static ConfigEntry<bool> MarkerOrb;
+        private static ConfigEntry<bool> MarkerOrbit;
         private static ConfigEntry<float> RespawnDelay;
         internal static ConfigEntry<bool> HideWhileJoining;
 
@@ -119,6 +120,8 @@ namespace AIMonsters
                 new ConfigDescription("味方のローブが受けるダメージの倍率(0 で倒されない。プレイヤーの武器の巻き添え対策)", new AcceptableValueRange<float>(0f, 2f)));
             MarkerOrb = cfg.Bind(Section, "頭の上にオーブを浮かべる", true,
                 "敵のローブと見分けられるように、頭の上にヒーラーオーブを浮かべる(MOD なしの人にも見える)");
+            MarkerOrbit = cfg.Bind(Section, "頭の上のオーブを回す", true,
+                "目印のオーブを、頭の上で輪のように回らせる(ただ浮いているオーブと見分けやすくする。MOD なしの人にも見える)");
             RespawnDelay = cfg.Bind(Section, "消えたあと出直すまでの秒数", 1f,
                 new ConfigDescription("何度も詰まったときなど、ゲームの仕組みで消えたあと、ついていく人の後ろに出直すまでの秒数",
                     new AcceptableValueRange<float>(0f, 300f)));
@@ -901,13 +904,22 @@ namespace AIMonsters
                 SpawnMarker(head);
                 return;
             }
-            // ばねのように頭の上へ引き寄せる(物理で動かすので、MOD なしの人にも同じように見える)
+            ProtectMarker();
+            // 頭の上を輪のように回らせる(ただ浮いているオーブと見分けやすくする)。
+            // ばねのように目標の位置へ引き寄せる(物理で動かすので、MOD なしの人にも同じように見える)
+            Vector3 target = head;
+            if (MarkerOrbit.Value)
+            {
+                float angle = Time.time * OrbitSpeed * Mathf.Deg2Rad;
+                target += new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * OrbitRadius
+                          + Vector3.up * (Mathf.Sin(Time.time * 2f) * 0.12f);
+            }
             var rb = marker.rb;
             marker.OverrideZeroGravity(0.2f);
-            Vector3 offset = head - marker.centerPoint;
+            Vector3 offset = target - marker.centerPoint;
             if (offset.magnitude > 6f)
             {
-                marker.Teleport(head, Quaternion.identity);
+                marker.Teleport(target, Quaternion.identity);
             }
             else if (rb && !rb.isKinematic)
             {
@@ -917,9 +929,57 @@ namespace AIMonsters
             else if (rb && marker.spawned)
             {
                 // 物理が止まっている(kinematic)間は速度を設定できない(毎フレーム警告が出る)ので、位置で動かす
-                rb.MovePosition(Vector3.Lerp(marker.centerPoint, head, Mathf.Clamp01(Time.deltaTime * 8f)) + (rb.position - marker.centerPoint));
+                rb.MovePosition(Vector3.Lerp(marker.centerPoint, target, Mathf.Clamp01(Time.deltaTime * 8f)) + (rb.position - marker.centerPoint));
             }
         }
+
+        private const float OrbitRadius = 0.7f;
+        private const float OrbitSpeed = 150f; // 度/秒
+        private static float nextReleaseAt;
+        private static float nextBatteryCheck;
+
+        /// <summary>
+        /// 目印のオーブを、ただの目印にする(ホストからゲーム本来の通信で操作するので、MOD なしの人にも効く)。
+        /// - つかまれたら、その人に手を離させる(少しの間つかめなくなる)。物理はホストが計算しているので、引っ張る力も消す
+        /// - 電池を 0 にする(回復のオーブは電池がないと、オンにしても回復しない。回復は各自の PC で動くため)
+        /// インベントリにしまう要求は EquipPatch で断る
+        /// </summary>
+        private static void ProtectMarker()
+        {
+            marker.OverrideGrabForceZero();
+            if (marker.playerGrabbing.Count > 0 && Time.time >= nextReleaseAt)
+            {
+                nextReleaseAt = Time.time + 0.3f;
+                int viewId = marker.photonView ? marker.photonView.ViewID : -1;
+                foreach (var grabber in marker.playerGrabbing.ToList())
+                {
+                    if (grabber)
+                    {
+                        grabber.OverrideGrabRelease(viewId, 2f);
+                    }
+                }
+            }
+            if (Time.time >= nextBatteryCheck)
+            {
+                nextBatteryCheck = Time.time + 1f;
+                var battery = marker.GetComponent<ItemBattery>();
+                if (battery && battery.itemAttributes && battery.batteryLife > 0f)
+                {
+                    battery.SetBatteryLife(0);
+                }
+            }
+        }
+
+        /// <summary>目印のオーブはインベントリにしまえない(しまう要求はホストが受け取って決める)。</summary>
+        [HarmonyPatch(typeof(ItemEquippable), nameof(ItemEquippable.RPC_RequestEquip))]
+        private static class EquipPatch
+        {
+            private static bool Prefix(ItemEquippable __instance)
+            {
+                return !(marker && __instance && __instance.gameObject == marker.gameObject);
+            }
+        }
+
 
         private static void SpawnMarker(Vector3 position)
         {
