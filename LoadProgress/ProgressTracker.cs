@@ -16,7 +16,7 @@ namespace LoadProgress
     internal class ProgressTracker : MonoBehaviour
     {
         // ゲーム本体は 123 / 124 / 199 を使う。被らない番号にする。
-        private const byte EventCode = 173;
+        internal const byte EventCode = 173;
         private const byte ProtocolVersion = 1;
         private const float PollInterval = 0.1f;
         private const float ResendInterval = 1f;

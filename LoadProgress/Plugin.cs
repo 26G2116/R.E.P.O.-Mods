@@ -10,7 +10,7 @@ namespace LoadProgress
     {
         public const string PluginGuid = "shunm.LoadProgress";
         public const string PluginName = "LoadProgress";
-        public const string PluginVersion = "0.3.0";
+        public const string PluginVersion = "0.4.0";
 
         internal static ManualLogSource Log;
 
@@ -27,6 +27,7 @@ namespace LoadProgress
         internal static ConfigEntry<float> LateJoinHideSeconds;
         internal static ConfigEntry<bool> LateJoinMapResend;
         internal static ConfigEntry<float> LateJoinMapResendSeconds;
+        internal static ConfigEntry<bool> ObserveEnabled;
 
         private void Awake()
         {
@@ -54,6 +55,9 @@ namespace LoadProgress
                 "(ホスト)途中参加の人が「マップ受信」で止まったら、足りないかもしれないマップの情報を送り直す。パーツの数をログに出す");
             LateJoinMapResendSeconds = Config.Bind("LateJoin", "MapResendSeconds", 8f,
                 "(ホスト)参加からこの秒数たっても「マップ受信」が終わらなければ送り直す(10 秒ごとに最大 3 回)");
+            ObserveEnabled = Config.Bind("Observe", "Enabled", true,
+                "入った部屋の様子をログ(LogOutput.log)に残す: ステージ名、チャット、トラックの画面の文字、部屋のカスタムプロパティ、" +
+                "この PC にない MOD の通信の回数。自分の PC のログに書くだけで、外には送らない(変更はゲーム再起動後に反映)");
 
             if (!Enabled.Value)
             {
@@ -67,6 +71,10 @@ namespace LoadProgress
             DontDestroyOnLoad(go);
             go.AddComponent<ProgressTracker>();
             go.AddComponent<LateJoinTracker>();
+            if (ObserveEnabled.Value)
+            {
+                go.AddComponent<RoomObserver>();
+            }
             new HarmonyLib.Harmony(PluginGuid).PatchAll(typeof(Plugin).Assembly);
 
             Log.LogInfo($"{PluginName} {PluginVersion} を読み込みました");
