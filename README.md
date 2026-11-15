@@ -8,20 +8,20 @@
 > - **MonsterTweaks** – heavy behaviour buffs for 27 monsters, plus per-monster stun immunity and move speed for all 31.
 > - **DroneTweaks** – brings removed drones and orbs back to the shop and gives them new effects (revive, invincibility, valuable repair, item conversion).
 > - **AIMonsters** – an Azure OpenAI model directs Robe, Loom and Cleanup Crew once they spot a player; break a big monster orb while holding it to summon a chatty ally Robe.
-> - **LoadProgress** – shows every player's loading progress in multiplayer.
+> - **LoadProgress** – shows every player's loading progress, tracks late joiners (the host re-sends map data when they get stuck), and can log what happens in rooms you join.
 >
 > Documentation is in Japanese. MIT licensed. Not on Thunderstore.
 
-> **開発中です。** ゲーム内でまだ確かめていない機能があります。おかしな動きを見つけたら [Issues](https://github.com/26G2116/R.E.P.O.-Mods/issues) で教えてください。
+> **開発中です。** ゲーム内でまだ確かめていない機能があります(各 MOD の説明書の「動作確認」に書いています)。おかしな動きを見つけたら [Issues](https://github.com/26G2116/R.E.P.O.-Mods/issues) で教えてください。
 
 ## MOD の一覧
 | MOD | 版 | 内容 | 入れる人 |
 |---|---|---|---|
-| [**FloorRoles**](FloorRoles/Package/README.md) | 0.3.6 | レベルごとに役職を選ぶ。ショップの所持金を個人ごとに分ける | ホストだけ |
-| [**MonsterTweaks**](MonsterTweaks/Package/README.md) | 0.10.5 | モンスター 27 体を個別に強化する。全モンスター共通の「スタン無効」「移動速度倍率」 | ホストだけ |
+| [**FloorRoles**](FloorRoles/Package/README.md) | 0.5.1 | レベルごとに役職を選ぶ。ショップの所持金を個人ごとに分ける | ホストだけ |
+| [**MonsterTweaks**](MonsterTweaks/Package/README.md) | 0.10.8 | モンスター 27 体を個別に強化する。全モンスター共通の「スタン無効」「移動速度倍率」「出現させる」 | ホストだけ |
 | [**DroneTweaks**](DroneTweaks/Package/README.md) | 0.5.3 | 削除されたドローン・オーブを店に戻し、新しい効果をつける | ホストだけ |
-| [**AIMonsters**](AIMonsters/Package/README.md) | 0.8.0 | Azure OpenAI の AI にローブ・ルーム・クリーンアップクルーを動かさせる。話せる味方のローブを呼べる | ホストだけ |
-| [**LoadProgress**](LoadProgress/Package/README.md) | 0.1.0 | マルチプレイのロード中に、全員のロードの進み具合を 10 段階で表示する | 見たい人 |
+| [**AIMonsters**](AIMonsters/Package/README.md) | 0.9.0 | Azure OpenAI の AI にローブ・ルーム・クリーンアップクルーを動かさせる。話せる味方のローブを呼べる | ホストだけ |
+| [**LoadProgress**](LoadProgress/Package/README.md) | 0.4.0 | ロードと途中参加の読み込みの進み具合を表示する。止まった途中参加の人にマップを送り直す。入った部屋の様子をログに残す | 見たい人(送り直しはホスト) |
 | [Translation](Translation/README.md) | — | ほかの作者の MOD の英語を日本語にする翻訳表(XUnity.AutoTranslator 用) | 使いたい人 |
 
 MOD の名前をクリックすると、それぞれの説明書を開けます。
@@ -33,6 +33,8 @@ MOD の名前をクリックすると、それぞれの説明書を開けます�
   - 運搬「引っ越し用運搬ロボ」: 貴重品の衝撃を 1/2 で無効にする。貴重品を金袋に変える
   - 戦闘「避雷針」: 武器を掲げてチャージすると、次の攻撃が 2 回当たる
   - 特殊「ギャンブラー」: チャットの `/r` のダイスで、回復・お金・自爆が起きる
+- 役職を選ばなかったときは、前の役職を引き継ぐ
+- トラックのモニターに、報酬の一覧と役職特性の説明をページで出す(チャットの `/s` で切り替え)
 - ショップでは、チームのお金を人数分の金袋に分け、各自の所持金で買い物をする。同じ商品を取り合うと決闘になる
 
 ### MonsterTweaks
@@ -47,6 +49,26 @@ MOD の名前をクリックすると、それぞれの説明書を開けます�
 - ヒーラードローンで倒れた人を復活させる。不滅オーブの範囲内のプレイヤーは無敵になる
 - フェザーオーブで貴重品の価値を回復する。マグネットオーブで貴重品をアイテムに変える
 - ドローン・オーブの店の値段を変えられる
+
+### AIMonsters
+- ローブ・ルーム・クリーンアップクルーがプレイヤーを見つけると、Azure OpenAI の AI(既定は `gpt-6-luna`)が狙う相手と動き方(追う・待ち伏せ・回り込み・貴重品を攻撃など)を決める
+- ティア 3 の敵のオーブ(大)をつかんだまま割ると、味方のローブが出る。ついてきて敵を攻撃し、チャットで話しかけると返事をする(「ついてきて」「トラックに案内して」「ここで待って」なども聞く)
+- 使うには、ホストの PC に Azure OpenAI のエンドポイントと API キーを環境変数で設定する
+
+**注意**: 味方のローブと話すと、近くのチャットの文が Azure に送られます。一緒に遊ぶ人に伝えてください。
+
+### LoadProgress
+- レベルの切り替わりで、全員のロードの進み具合を 10 段階で表示する
+- レベルの途中で入ってきた人(LateJoinNow などの途中参加 MOD)の読み込みを 7 段階で表示し、止まったら知らせる
+- 途中参加の人が「マップ受信」で止まったら、ホストがマップの情報を送り直す
+- 入った部屋の様子(ステージ名・チャット・ホストの MOD の通信)を自分のログに残す
+
+## 一緒に使う MOD
+| MOD | 組み合わせたときの動き |
+|---|---|
+| [REPOConfig](https://thunderstore.io/c/repo/p/REPOModding/REPOConfig/) | ゲーム中に設定を変えられる(MonsterTweaks はすぐ反映) |
+| LateJoinNow などの途中参加 MOD | AIMonsters は、途中参加の人の読み込み中は味方のローブを隠す(読み込みが終わらない問題の対策)。LoadProgress は読み込みの進み具合を表示し、止まったらマップを送り直す |
+| MonsterTweaks + AIMonsters | AI が動かしている敵は、MonsterTweaks の行動の強化を止める(速さ・視界の強化はそのまま)。ヒドゥンは味方のローブの所へは運ばない |
 
 ## 導入方法(遊ぶ人向け)
 Releases はまだありません。zip は下の「ビルド」で作ります。
@@ -89,7 +111,7 @@ dotnet build -c Release -p:UseCachedPublicized=true
 | `MonsterTweaks/` | モンスターを強化する MOD(`Enemies/` に敵ごとの処理。開発の記録: [Docs/monster_tweaks.md](Docs/monster_tweaks.md)) |
 | `DroneTweaks/` | ドローン・オーブを変える MOD |
 | `AIMonsters/` | Azure OpenAI の AI に敵を動かさせる MOD(仕様: [Docs/ai_monsters.md](Docs/ai_monsters.md)) |
-| `LoadProgress/` | ロードの進み具合を表示する MOD(仕組み: [Docs/loading_flow.md](Docs/loading_flow.md)) |
+| `LoadProgress/` | ロードと途中参加の進み具合を表示する MOD(仕組み: [Docs/loading_flow.md](Docs/loading_flow.md)) |
 | `RepoModTemplate/` | 新しい MOD を作るときのひな形(起動ログ・設定・Harmony パッチのサンプル) |
 | `Translation/` | 日本語化の翻訳表 |
 | `Tools/` | MOD の設定項目や英語の文を抜き出すスクリプト、上のビルド用の設定 |
