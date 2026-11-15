@@ -710,7 +710,7 @@ namespace FloorRoles
                 {
                     if (Net.IsHost)
                     {
-                        Roles.OnLeavingLevel(_completedLevel && !_levelFailed);
+                        Roles.OnLeavingLevel(_completedLevel && !_levelFailed, _levelFailed);
                         ShopBudget.OnLeavingLevel();
                         Duel.OnLeavingLevel();
                         Traits.OnLeavingLevel();

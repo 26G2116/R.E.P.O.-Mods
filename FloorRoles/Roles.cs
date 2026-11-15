@@ -24,7 +24,7 @@ namespace FloorRoles
     ///
     /// - トラックに入ったら、次のマップを先に抽選し、役職ごとの報酬の候補(運搬・戦闘は 3 種類、特殊は 4 種類)ともらえる数をモニターに出す
     /// - 人数分のロールオーブを出す。トラックを出発したとき、ロールオーブを 1 つだけインベントリに入れている人は、
-    ///   入れたスロット(1 運搬 / 2 戦闘 / 3 特殊)の役職になる。0 個・2 個以上なら役職なし
+    ///   入れたスロット(1 運搬 / 2 戦闘 / 3 特殊)の役職になる。0 個・2 個以上なら前に選んだ役職を引き継ぐ(全滅・新しいランでリセット)
     /// - 出発したとき、役職のある人ごとに 1D100 を振り、もらえる数を決める(クリティカル 1〜5 で 3 つ、ファンブル 96〜100 で 1 つ、
     ///   それ以外は 2 つ)。どれをもらえるかは役職の候補からランダム。ダイスの結果と報酬は、次のレベルの開始時にその人がしゃべる
     /// - 報酬はゲーム本来のアップグレードと同じ(全員の PC で同じ処理が動く)ので、MOD なしの参加者にも効く。
@@ -54,6 +54,8 @@ namespace FloorRoles
         private static ConfigEntry<int> MonitorLineHeight;
         private static ConfigEntry<int> MonitorSpareLines;
         private static ConfigEntry<bool> RewardDice;
+        private static ConfigEntry<bool> KeepRoles;
+        private static ConfigEntry<bool> KeptRoleRewards;
         private static ConfigEntry<int> DiceCriticalMax;
         private static ConfigEntry<int> DiceFumbleMin;
         private static ConfigEntry<int> CriticalRewardCount;
@@ -104,6 +106,12 @@ namespace FloorRoles
 
         // ---- 出発時に渡した報酬(次のレベルの開始時にしゃべらせる) ----
         private static readonly Dictionary<string, Role> NextRoles = new Dictionary<string, Role>();
+        /// <summary>最後に選んだ役職(次のトラックで選ばなければ引き継ぐ)。同じランの間だけ覚える。</summary>
+        private static readonly Dictionary<string, Role> KeptRoles = new Dictionary<string, Role>();
+        /// <summary>KeptRoles を覚えたときのセーブ(別のセーブを読み込んだら忘れる)。</summary>
+        private static string keptSave;
+        /// <summary>今回の出発で、前の役職を引き継いだ人。</summary>
+        private static readonly HashSet<string> InheritedRoles = new HashSet<string>();
         private static readonly Dictionary<string, string> Announcements = new Dictionary<string, string>();
         private static int announceGeneration = -1;
         private static bool announceScheduled;
@@ -145,6 +153,10 @@ namespace FloorRoles
                 new ConfigDescription("役職の報酬でスプリント速度をここまでしか上げない(0 = 上限なし)", new AcceptableValueRange<int>(0, 99)));
             LaunchCap = cfg.Bind(Section, "タンブル発射の上限", 2,
                 new ConfigDescription("役職の報酬でタンブル発射をここまでしか上げない(0 = 上限なし)", new AcceptableValueRange<int>(0, 99)));
+            KeepRoles = cfg.Bind(Section, "選ばなければ前の役職を引き継ぐ", true,
+                "出発のとき、ロールオーブを 1 個だけ入れていない人(0 個・2 個以上)は、前に選んだ役職のままにする(全滅したら・新しいランではリセット)");
+            KeptRoleRewards = cfg.Bind(Section, "引き継いだ役職でも報酬をもらう", true,
+                "前の役職を引き継いだ人にも、出発のときに役職の報酬(報酬ダイス)を渡す");
             RewardDice = cfg.Bind(Section, "報酬ダイス", true,
                 "出発したとき、役職のある人ごとに 1D100 を振り、報酬の数を変える(クリティカルで増える・ファンブルで減る)。結果は次のマップの開始時にしゃべる");
             DiceCriticalMax = cfg.Bind(Section, "報酬ダイスのクリティカルの上限", 5,
@@ -345,7 +357,7 @@ namespace FloorRoles
             {
                 lines.Add("次のマップ: " + LevelName(nextLevel));
             }
-            lines.Add("ロールオーブ1個をスロット1~3へ");
+            lines.Add(KeepRoles.Value ? "ロールオーブ1個をスロット1~3へ(入れなければ前の役職のまま)" : "ロールオーブ1個をスロット1~3へ");
             for (int role = 0; role < 3; role++)
             {
                 lines.Add($"{role + 1} {RoleNames[role]}{TraitLabel(role)}: {string.Join(", ", RoleStats[role].Select(s => s.Label))} の中からランダムに{CountRange(RoleStats[role].Length)}個{amount}");
@@ -575,8 +587,12 @@ namespace FloorRoles
         // トラックを出発したとき(ホスト)
         // ================================================================
 
-        internal static void OnLeavingLevel(bool completed)
+        internal static void OnLeavingLevel(bool completed, bool failed)
         {
+            if (failed)
+            {
+                KeptRoles.Clear(); // 全滅: ランが終わるので、役職の引き継ぎもおしまい
+            }
             if (Enabled.Value && SemiFunc.RunIsLobby() && completed && lobbyPrepared)
             {
                 DecideRoles();
@@ -596,6 +612,14 @@ namespace FloorRoles
         {
             NextRoles.Clear();
             Announcements.Clear();
+            InheritedRoles.Clear();
+            // 新しいラン・別のセーブなら、前の役職は引き継がない
+            string save = StatsManager.instance ? StatsManager.instance.saveFileCurrent : null;
+            if (save != keptSave || (RunManager.instance && RunManager.instance.levelsCompleted == 0))
+            {
+                KeptRoles.Clear();
+                keptSave = save;
+            }
             // インベントリに入っているロールオーブを、持ち主ごとにまとめる
             var spots = new Dictionary<PlayerAvatar, List<int>>();
             foreach (var equippable in Object.FindObjectsByType<ItemEquippable>(FindObjectsSortMode.None))
@@ -622,15 +646,24 @@ namespace FloorRoles
                     continue;
                 }
                 var role = Role.None;
+                bool inherited = false;
                 if (spots.TryGetValue(player, out var list) && list.Count == 1 && list[0] >= 0 && list[0] <= 2)
                 {
                     role = (Role)list[0];
+                    KeptRoles[player.steamID] = role;
+                }
+                else if (KeepRoles.Value && KeptRoles.TryGetValue(player.steamID, out var kept))
+                {
+                    // 選ばなかった(ロールオーブが 0 個・2 個以上): 前の役職のまま
+                    role = kept;
+                    inherited = true;
+                    InheritedRoles.Add(player.steamID);
                 }
                 if (role != Role.None)
                 {
                     NextRoles[player.steamID] = role;
                 }
-                Plugin.Verbose($"役職: {Net.Name(player)} = {(role == Role.None ? "なし" : RoleNames[(int)role])}(ロールオーブ {(list == null ? 0 : list.Count)} 個)");
+                Plugin.Verbose($"役職: {Net.Name(player)} = {(role == Role.None ? "なし" : RoleNames[(int)role])}{(inherited ? "(引き継ぎ)" : "")}(ロールオーブ {(list == null ? 0 : list.Count)} 個)");
             }
         }
 
@@ -704,6 +737,13 @@ namespace FloorRoles
         {
             foreach (var pair in NextRoles)
             {
+                bool inherited = InheritedRoles.Contains(pair.Key);
+                string roleLabel = RoleNames[(int)pair.Value] + (inherited ? "(引き継ぎ)" : "");
+                if (inherited && !KeptRoleRewards.Value)
+                {
+                    Announcements[pair.Key] = $"{roleLabel}: 報酬なし";
+                    continue;
+                }
                 // 報酬ダイス: クリティカルなら多く、ファンブルなら少なく、それ以外はいつもの数
                 int count = Mathf.Clamp(RewardCount.Value, 1, 3);
                 string dice = null;
@@ -741,7 +781,7 @@ namespace FloorRoles
                     Net.Upgrade(pair.Key, stat.Key, amount);
                     labels.Add($"{stat.Label}+{amount}");
                 }
-                string line = $"{RoleNames[(int)pair.Value]}: " +
+                string line = $"{roleLabel}: " +
                               (labels.Count > 0 ? string.Join(", ", labels) : count > 0 ? "報酬なし(上限)" : "報酬なし");
                 if (dice != null)
                 {
