@@ -19,7 +19,7 @@ namespace AIMonsters
     {
         public const string PluginGuid = "shunm.AIMonsters";
         public const string PluginName = "AIMonsters";
-        public const string PluginVersion = "0.7.0";
+        public const string PluginVersion = "0.8.0";
 
         private const string General = "0. 全体";
 
@@ -118,6 +118,7 @@ namespace AIMonsters
             try
             {
                 Director.Tick();
+                AllyLateJoin.Tick();
                 AllyRobe.Tick();
                 AllyChat.Tick();
             }

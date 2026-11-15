@@ -28,6 +28,7 @@ namespace AIMonsters
         private static ConfigEntry<float> DamageTaken;
         private static ConfigEntry<bool> MarkerOrb;
         private static ConfigEntry<float> RespawnDelay;
+        internal static ConfigEntry<bool> HideWhileJoining;
 
         internal enum Mode
         {
@@ -90,6 +91,20 @@ namespace AIMonsters
         private static ItemAttributes markerAttributes;
         private static HashSet<string> namesBeforeMarker;
 
+        // 途中参加の人への対応(AllyLateJoin)
+        /// <summary>途中参加の人の読み込みを待って、退場させたままにしている。</summary>
+        private static bool heldForJoin;
+        /// <summary>途中参加の人の読み込み中にオーブが割られた: 読み込みが終わってから呼び出す。</summary>
+        private static bool summonQueued;
+        private static Vector3 queuedSpot;
+        private static PlayerAvatar queuedSummoner;
+        /// <summary>生成したときの情報(途中参加の人にだけ、あとから生成を送るのに使う)。</summary>
+        private static string allyPath;
+        private static int[] allyViewIds;
+        private static int allyLevelPrefix;
+        /// <summary>生成した時刻(Time.unscaledTime)。これより前から部屋にいる人は、生成をもう受け取っている。</summary>
+        private static float allyCreatedAt;
+
         internal static void Bind(ConfigFile cfg)
         {
             Enabled = cfg.Bind(Section, "有効", true,
@@ -107,6 +122,9 @@ namespace AIMonsters
             RespawnDelay = cfg.Bind(Section, "消えたあと出直すまでの秒数", 1f,
                 new ConfigDescription("何度も詰まったときなど、ゲームの仕組みで消えたあと、ついていく人の後ろに出直すまでの秒数",
                     new AcceptableValueRange<float>(0f, 300f)));
+            HideWhileJoining = cfg.Bind(Section, "途中参加の人の読み込み中は隠す", true,
+                "途中参加 MOD で人が入ってくるとき、その人の読み込みが終わるまで味方のローブを退場させる(味方のローブがいると途中参加に失敗するため)。"
+                + "読み込みが終わると、ついていく人の後ろに出直す");
         }
 
         internal static bool IsAlly(Enemy enemy) => enemy && Ally && Ally.enemy == enemy;
@@ -138,6 +156,15 @@ namespace AIMonsters
                     return; // つかまれずに壊れた(投げた・落とした・数の上限で消えた)
                 }
                 used = true;
+                if (AllyLateJoin.Holding)
+                {
+                    // 途中参加の人が読み込み中: 今生成すると、その人の読み込みに混ざる。終わってから呼び出す(Tick)
+                    summonQueued = true;
+                    queuedSpot = grab.centerPoint;
+                    queuedSummoner = summoner;
+                    Plugin.Log.LogInfo("味方のローブ: 途中参加の人の読み込みが終わってから呼び出します");
+                    return;
+                }
                 Summon(grab.centerPoint, summoner);
             }
         }
@@ -175,6 +202,16 @@ namespace AIMonsters
             }
             allyParent = parent;
             Ally = robe;
+            // 途中参加の人の読み込みに混ざらないように、生成の記録を部屋から消す。
+            // あとから入った人には、読み込みが終わってから ShowTo で生成を送る(そのための情報を覚えておく)
+            var views = obj.GetComponentsInChildren<PhotonView>(true); // Photon が ID を割り当てたときと同じ順番
+            allyPath = prefab.ResourcePath;
+            allyViewIds = SemiFunc.IsMultiplayer() && views.Length > 0 && views.All(v => v.ViewID > 0)
+                ? views.Select(v => v.ViewID).ToArray()
+                : null;
+            allyLevelPrefix = views.Length > 0 ? views[0].Prefix : 0;
+            allyCreatedAt = Time.unscaledTime;
+            AllyLateJoin.Uncache(obj);
             // ほかの MOD(MonsterTweaks)がこのローブの行動を変えないように、AI が動かしている目印をつける
             if (robe.enemy && !robe.enemy.GetComponent<AIMonstersControlled>())
             {
@@ -189,7 +226,7 @@ namespace AIMonsters
             OrderedTarget = null;
             pendingSpawn = true;
             pendingSpot = spot;
-            Plugin.Log.LogInfo($"味方のローブを呼び出しました({summoner.playerName} がオーブを割りました)");
+            Plugin.Log.LogInfo($"味方のローブを呼び出しました({(summoner ? summoner.playerName : "?")} がオーブを割りました)");
             Runner.Instance.StartCoroutine(Greet());
         }
 
@@ -261,7 +298,20 @@ namespace AIMonsters
                 }
                 if (!__instance.Spawned)
                 {
-                    if (pendingSpawn)
+                    if (AllyLateJoin.Holding)
+                    {
+                        // 途中参加の人が読み込み中: 退場させたままにする
+                        heldForJoin = true;
+                        __instance.DespawnedTimer = Mathf.Max(__instance.DespawnedTimer, 1f);
+                    }
+                    else if (heldForJoin)
+                    {
+                        // 読み込みが終わった: すぐ出直す(最初ならオーブが割れた場所、2 回目からはついていく人の後ろ)
+                        heldForJoin = false;
+                        respawnTimerSet = true;
+                        __instance.DespawnedTimer = Mathf.Min(__instance.DespawnedTimer, 0.3f);
+                    }
+                    else if (pendingSpawn)
                     {
                         // 呼び出した直後: すぐ出す
                         __instance.DespawnedTimer = Mathf.Min(__instance.DespawnedTimer, 0.3f);
@@ -278,6 +328,80 @@ namespace AIMonsters
                     respawnTimerSet = false;
                     __instance.SpawnedTimer = Mathf.Max(__instance.SpawnedTimer, 60f);
                 }
+            }
+        }
+
+        // ================================================================
+        // 途中参加の人への対応(AllyLateJoin から呼ばれる)
+        // ================================================================
+
+        /// <summary>
+        /// 途中参加の人が入ってきた: 味方のローブを退場させ(ゲームの「帰る」と同じ仕組み)、目印のオーブを消す。
+        /// 読み込みが終わるまで出さない(ParentUpdatePatch)。退場させたら true。
+        /// </summary>
+        internal static bool HideForJoin()
+        {
+            if (!IsHost || !Ally || !allyParent)
+            {
+                return false;
+            }
+            CancelAttack();
+            bool despawned = false;
+            if (allyParent.Spawned)
+            {
+                allyParent.Despawn();
+                despawned = true;
+            }
+            if (marker || (object)markerAttributes != null)
+            {
+                CleanupMarker();
+            }
+            markerName = null; // 出直したときに、目印のオーブも作り直す
+            return despawned;
+        }
+
+        /// <summary>
+        /// 読み込みが終わった途中参加の人に、味方のローブの生成を送る(生成の記録を消してあるので、その人の PC にはまだいない)。
+        /// 送ったら true。joinedAt はその人が部屋に入った時刻(Time.unscaledTime)。
+        /// </summary>
+        internal static bool ShowTo(Photon.Realtime.Player target, float joinedAt)
+        {
+            if (!IsHost || !Ally || !allyParent || allyViewIds == null)
+            {
+                return false;
+            }
+            if (allyCreatedAt >= joinedAt - 1f)
+            {
+                // その人が部屋に入ったあとで生成した: 生成はもう届いている(もう一度送ると、同じ ID の物が 2 つできる)。
+                // 入る直前(1 秒以内)の生成は、通信の遅れでどちらか分からないので送らない(その人には見えないだけで済む)
+                return false;
+            }
+            var parent = allyParent;
+            if (!AllyLateJoin.SendInstantiateTo(target, allyPath, parent.transform.position, allyViewIds, allyLevelPrefix))
+            {
+                Plugin.Log.LogWarning("味方のローブ: 途中参加の人に生成を送れませんでした");
+                return false;
+            }
+            if (!parent.Spawned)
+            {
+                // 生成した直後は出現している状態なので、ホストと同じ「退場中」にそろえる
+                parent.photonView.RPC("DespawnRPC", target);
+            }
+            Runner.Instance.StartCoroutine(ResendSetupDone(parent));
+            return true;
+        }
+
+        /// <summary>
+        /// 「準備完了」(EnemyParent.SetupDone)は値が変わったときだけ同期されるので、いったん戻してから立て直して送り直す。
+        /// (届かないと、途中参加の人の PC で、このローブが敵の一覧に入らない)
+        /// </summary>
+        private static System.Collections.IEnumerator ResendSetupDone(EnemyParent parent)
+        {
+            parent.SetupDone = false;
+            yield return new WaitForSecondsRealtime(0.5f);
+            if (parent)
+            {
+                parent.SetupDone = true;
             }
         }
 
@@ -739,6 +863,17 @@ namespace AIMonsters
                 level = LevelGenerator.Instance;
                 Reset();
             }
+            if (summonQueued && IsHost && !AllyLateJoin.Holding)
+            {
+                // 途中参加の人の読み込み中に割られたオーブの分を、今呼び出す
+                summonQueued = false;
+                var summoner = queuedSummoner && !queuedSummoner.isDisabled ? queuedSummoner : Nav.NearestPlayer(queuedSpot);
+                queuedSummoner = null;
+                if (summoner)
+                {
+                    Summon(queuedSpot, summoner);
+                }
+            }
             if (!IsHost || !Ally)
             {
                 return;
@@ -799,6 +934,7 @@ namespace AIMonsters
             GameObject obj = SemiFunc.IsMultiplayer()
                 ? PhotonNetwork.InstantiateRoomObject(item.prefab.ResourcePath, position, Quaternion.identity, 0, null)
                 : (item.prefab.Prefab ? Object.Instantiate(item.prefab.Prefab, position, Quaternion.identity) : null);
+            AllyLateJoin.Uncache(obj); // 途中参加の人の読み込みに混ざらないようにする(入ってきたら消して、あとで作り直す)
             marker = obj ? obj.GetComponent<PhysGrabObject>() : null;
             markerAttributes = obj ? obj.GetComponent<ItemAttributes>() : null;
             markerName = markerAttributes ? markerAttributes.instanceName ?? "" : "";
@@ -875,6 +1011,13 @@ namespace AIMonsters
             markerName = null;
             markerAttributes = null;
             namesBeforeMarker = null;
+            heldForJoin = false;
+            summonQueued = false;
+            queuedSummoner = null;
+            allyPath = null;
+            allyViewIds = null;
+            allyLevelPrefix = 0;
+            allyCreatedAt = 0f;
             robeSearched = robeRef != null;
             AllyChat.Reset();
         }
