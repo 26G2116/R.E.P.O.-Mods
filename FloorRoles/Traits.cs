@@ -89,6 +89,47 @@ namespace FloorRoles
                 new ConfigDescription("金袋(大)のファンブルで出す起動済みグレネードの数", new AcceptableValueRange<int>(0, 30)));
         }
 
+        /// <summary>
+        /// トラックのモニターに出す役職特性の説明(役職ごとに 1 ページ。数字は設定の値)。
+        /// 文はユーザーの説明文のとおり(仕組みの補足は出さない)。
+        /// </summary>
+        internal static string[] Description(int role)
+        {
+            int success = SuccessMax.Value;
+            string guard = CarrierGuardChance.Value == 50 ? "1/2" : $"{CarrierGuardChance.Value}%";
+            switch (role)
+            {
+                case 0:
+                    return new[]
+                    {
+                        $"つかんでいる貴重品が衝撃を受けたとき、{guard}で無効化し、価値が減らない。",
+                        "しゃがんだ状態で4秒間貴重品をつかむと、ダイスロールが発生。",
+                        $"{success}以下なら金額に応じた大きさの金袋に変換、criticalで現在価値+{CarrierCriticalBonus.Value}%の小金袋に変換、" +
+                        "fumbleで爆発する。それ以外は何も起きない。",
+                    };
+                case 1:
+                    return new[]
+                    {
+                        "武器をつかんだ状態で上に掲げるとチャージを開始する。チャージが完了した後、次の攻撃のみ2回攻撃になる。",
+                        "電池切れの武器をしゃがんだ状態で4秒以上つかんでいるとダイスロールが発生。",
+                        $"{success}以下で電池{Number(BatteryStep.Value)}%回復、{success + 1}以上で電池{Number(BatteryStep.Value)}%減。" +
+                        "criticalで武器の電池が全回復し、fumbleで武器が破壊。",
+                    };
+                default:
+                    return new[]
+                    {
+                        $"「{DiceRoll.Command.Value}」でのダイスロールの性能を大幅変更する。criticalで周囲{Number(GamblerRadius.Value)}ユニットの味方全員のHPを{GamblerHeal.Value}回復し、" +
+                        $"fumbleで周囲{Number(GamblerRadius.Value)}ユニットの味方全員を自爆させる。50以下で{GamblerBag.Value}$の金袋小を生み出し、51以上でダメージを受ける。" +
+                        "ダイスロール実行前に何かランダムで一言喋る。",
+                        "レベル中一人一回だけ、金袋大を賭けることができる。",
+                        $"{success}以下で元の価値の0.5倍の金袋を生成、{success + 1}以上で爆発、criticalで金袋の元の価格の{CubeMultiplier.Value}倍の覚醒キューブに変換、" +
+                        $"fumbleで本人は自爆し、その場に起動済みグレネードを{GrenadeCount.Value}個出現。",
+                    };
+            }
+        }
+
+        private static string Number(float value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
         internal static bool Active => Enabled.Value && Roles.Enabled.Value && SemiFunc.RunIsLevel();
 
         internal static Role RoleOf(PlayerAvatar player)

@@ -43,6 +43,8 @@ namespace FloorRoles
         private static ConfigEntry<bool> HostOnlyDeparture;
         private static ConfigEntry<bool> PrerollLevel;
         private static ConfigEntry<bool> ShowOnMonitor;
+        private static ConfigEntry<bool> ShowTraitPages;
+        private static ConfigEntry<float> PageSeconds;
         private static ConfigEntry<int> RewardCount;
         private static ConfigEntry<int> RewardAmount;
         private static ConfigEntry<int> SpeedCap;
@@ -118,6 +120,10 @@ namespace FloorRoles
             HostOnlyDeparture = cfg.Bind(Section, "出発はホストだけ", true, "トラックのモニター(チャット)で出発できるのをホストだけにする");
             PrerollLevel = cfg.Bind(Section, "次のマップを先に決める", true, "トラックに入った時点で次のマップを抽選し、モニターに出す");
             ShowOnMonitor = cfg.Bind(Section, "モニターに表示", true, "役職ごとの報酬をトラックのモニターに出す");
+            ShowTraitPages = cfg.Bind(Section, "役職特性の説明をモニターに出す", true,
+                "報酬の一覧のあとに、役職特性(運搬・戦闘・特殊)の説明を 1 役職ずつ順番にモニターに出す(一覧と交互に切り替わる)");
+            PageSeconds = cfg.Bind(Section, "モニターのページを切り替える秒数", 15f,
+                new ConfigDescription("報酬の一覧と役職特性の説明を切り替える間隔", new AcceptableValueRange<float>(5f, 120f)));
             MonitorTextSize = cfg.Bind(Section, "モニターの文字の大きさ(%)", 70,
                 new ConfigDescription("モニターに出す役職の説明の文字の大きさの上限(枠に収まらなければ、自動で小さくする)", new AcceptableValueRange<int>(40, 100)));
             MonitorLineHeight = cfg.Bind(Section, "モニターの行の高さ(%)", 85,
@@ -197,23 +203,38 @@ namespace FloorRoles
             }
             // 税務官がページを最後まで打ち終わってから書く(行と行の間に書くと、続きの行に押し上げられて
             // 12 行の制限で上から消える)。90 秒たっても終わらなければ、打っていない瞬間に書く
+            // ページ 0 = 報酬の一覧、1〜3 = 役職特性の説明(運搬・戦闘・特殊)。役職特性の説明を出すときは順番に切り替える
             float waited = 0f;
+            bool first = true;
+            int page = 0;
+            float nextPageAt = 0f;
             while (generation == Phase.Generation && SemiFunc.RunIsLobby())
             {
-                if ((Net.TruckPageFinished() || waited >= 90f) && Net.TruckMessage(MonitorText()))
+                bool due = first ? Net.TruckPageFinished() || waited >= 90f : Time.time >= nextPageAt;
+                if (due && Net.TruckMessage(MonitorText(PageLines(page), page)))
                 {
-                    // 古い文章が消えたかを、少しあとでログに出す(見切れの調査用)
-                    yield return new WaitForSeconds(2f);
-                    var screen = TruckScreenText.instance;
-                    if (screen && screen.textMesh)
+                    bool paging = ShowTraitPages.Value && Traits.Enabled != null && Traits.Enabled.Value;
+                    page = paging ? (page + 1) % 4 : 0;
+                    nextPageAt = Time.time + PageSeconds.Value;
+                    if (first)
                     {
-                        string text = screen.textMesh.text ?? "";
-                        Plugin.Log.LogInfo($"モニター(2 秒後): 数えた行 {screen.textMesh.textInfo.lineCount}、改行 {text.Count(c => c == '\n')}、" +
-                                           $"古い文章の名前の行が残っている: {text.Contains(":</b>")}");
+                        first = false;
+                        // 古い文章が消えたかを、少しあとでログに出す(見切れの調査用)
+                        yield return new WaitForSeconds(2f);
+                        var screen = TruckScreenText.instance;
+                        if (screen && screen.textMesh)
+                        {
+                            string text = screen.textMesh.text ?? "";
+                            Plugin.Log.LogInfo($"モニター(2 秒後): 数えた行 {screen.textMesh.textInfo.lineCount}、改行 {text.Count(c => c == '\n')}、" +
+                                               $"古い文章の名前の行が残っている: {text.Contains(":</b>")}");
+                        }
                     }
-                    yield break;
+                    if (!paging)
+                    {
+                        yield break;
+                    }
                 }
-                if (waited >= 150f)
+                else if (first && waited >= 150f)
                 {
                     yield break;
                 }
@@ -222,7 +243,20 @@ namespace FloorRoles
             }
         }
 
-        private static string MonitorText()
+        /// <summary>モニターのページの行(0 = 報酬の一覧、1〜3 = 役職特性の説明)。</summary>
+        private static List<string> PageLines(int page)
+        {
+            if (page <= 0)
+            {
+                return OverviewLines();
+            }
+            int role = page - 1;
+            var lines = new List<string> { $"<b>{role + 1} {RoleNames[role]}: {TraitNames[role]}</b>  ({page}/3)" };
+            lines.AddRange(Traits.Description(role));
+            return lines;
+        }
+
+        private static List<string> OverviewLines()
         {
             // モニターは「12 行を超えたら上の行を消す」が、枠からはみ出した行は数えない(はみ出した行が見えないまま残る)。
             // 表示枠はホストの MOD からは変えられないので、送る文章だけで収める:
@@ -254,7 +288,11 @@ namespace FloorRoles
                 dice.Add($"他:{Mathf.Clamp(RewardCount.Value, 1, 3)}個");
                 lines.Add("出発時ダイス " + string.Join(" ", dice));
             }
+            return lines;
+        }
 
+        private static string MonitorText(List<string> lines, int page)
+        {
             // 文字の大きさを決める: 役職の説明が枠に収まる大きさ(設定の大きさから 5% ずつ小さくして探す)
             int size = MonitorTextSize.Value;
             int contentLines = lines.Count;
@@ -275,7 +313,7 @@ namespace FloorRoles
                     }
                 }
             }
-            Plugin.Log.LogInfo($"モニター: 文字 {size}%、役職の説明 {contentLines} 行({diagnosis})");
+            Plugin.Log.LogInfo($"モニター(ページ {page}): 文字 {size}%、{contentLines} 行({diagnosis})");
             return FlushLines(12) + "\n" + FormatMonitorLines(lines, size);
         }
 

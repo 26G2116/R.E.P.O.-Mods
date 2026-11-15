@@ -19,7 +19,7 @@ namespace FloorRoles
         private const string Section = "5. ダイス(/r)";
 
         private static ConfigEntry<bool> Enabled;
-        private static ConfigEntry<string> Command;
+        internal static ConfigEntry<string> Command;
         private static ConfigEntry<bool> LevelOnly;
         private static ConfigEntry<int> CriticalMax;
         private static ConfigEntry<int> FumbleMin;
