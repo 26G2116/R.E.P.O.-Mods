@@ -45,6 +45,7 @@ namespace FloorRoles
         private static ConfigEntry<bool> ShowOnMonitor;
         private static ConfigEntry<bool> ShowTraitPages;
         private static ConfigEntry<float> PageSeconds;
+        private static ConfigEntry<string> PageCommand;
         private static ConfigEntry<int> RewardCount;
         private static ConfigEntry<int> RewardAmount;
         private static ConfigEntry<int> SpeedCap;
@@ -123,7 +124,10 @@ namespace FloorRoles
             ShowTraitPages = cfg.Bind(Section, "役職特性の説明をモニターに出す", true,
                 "報酬の一覧のあとに、役職特性(運搬・戦闘・特殊)の説明を 1 役職ずつ順番にモニターに出す(一覧と交互に切り替わる)");
             PageSeconds = cfg.Bind(Section, "モニターのページを切り替える秒数", 15f,
-                new ConfigDescription("報酬の一覧と役職特性の説明を切り替える間隔", new AcceptableValueRange<float>(5f, 120f)));
+                new ConfigDescription("報酬の一覧と役職特性の説明を自動で切り替える間隔(0 = 自動では切り替えず、コマンドだけで切り替える)",
+                    new AcceptableValueRange<float>(0f, 120f)));
+            PageCommand = cfg.Bind(Section, "ページ切り替えのコマンド", "/s",
+                "トラックでチャットに打つと、モニターのページを切り替える(だれでも使える)。「/s」で次、「/s 0」で報酬の一覧、「/s 1」〜「/s 3」で運搬・戦闘・特殊");
             MonitorTextSize = cfg.Bind(Section, "モニターの文字の大きさ(%)", 70,
                 new ConfigDescription("モニターに出す役職の説明の文字の大きさの上限(枠に収まらなければ、自動で小さくする)", new AcceptableValueRange<int>(40, 100)));
             MonitorLineHeight = cfg.Bind(Section, "モニターの行の高さ(%)", 85,
@@ -204,18 +208,43 @@ namespace FloorRoles
             // 税務官がページを最後まで打ち終わってから書く(行と行の間に書くと、続きの行に押し上げられて
             // 12 行の制限で上から消える)。90 秒たっても終わらなければ、打っていない瞬間に書く
             // ページ 0 = 報酬の一覧、1〜3 = 役職特性の説明(運搬・戦闘・特殊)。役職特性の説明を出すときは順番に切り替える
+            // コマンド(/s)で切り替えるときは、すぐにそのページを出す(自動の切り替えはそこから数え直す)
             float waited = 0f;
             bool first = true;
             int page = 0;
             float nextPageAt = 0f;
+            requestedPage = NoRequest;
+            monitorPaging = false;
             while (generation == Phase.Generation && SemiFunc.RunIsLobby())
             {
-                bool due = first ? Net.TruckPageFinished() || waited >= 90f : Time.time >= nextPageAt;
+                bool paging = TraitPagesOn;
+                int request = requestedPage;
+                bool due;
+                if (first)
+                {
+                    due = Net.TruckPageFinished() || waited >= 90f;
+                }
+                else if (request != NoRequest)
+                {
+                    due = true;
+                    if (request >= 0)
+                    {
+                        page = Mathf.Clamp(request, 0, 3);
+                    }
+                }
+                else
+                {
+                    due = PageSeconds.Value > 0f && Time.time >= nextPageAt;
+                }
                 if (due && Net.TruckMessage(MonitorText(PageLines(page), page)))
                 {
-                    bool paging = ShowTraitPages.Value && Traits.Enabled != null && Traits.Enabled.Value;
+                    if (requestedPage == request)
+                    {
+                        requestedPage = NoRequest;
+                    }
                     page = paging ? (page + 1) % 4 : 0;
                     nextPageAt = Time.time + PageSeconds.Value;
+                    monitorPaging = paging;
                     if (first)
                     {
                         first = false;
@@ -238,8 +267,55 @@ namespace FloorRoles
                 {
                     yield break;
                 }
-                waited += 0.5f;
-                yield return new WaitForSeconds(0.5f);
+                waited += 0.25f;
+                yield return new WaitForSeconds(0.25f);
+            }
+            monitorPaging = false;
+        }
+
+        // ---- モニターのページ切り替え ----
+        private const int NoRequest = -1;
+        private const int RequestNext = -2;
+        /// <summary>コマンドで頼まれたページ(NoRequest = なし、RequestNext = 次、0〜3 = そのページ)。</summary>
+        private static int requestedPage = NoRequest;
+        /// <summary>モニターのページを切り替えている最中か(コマンドを受け付けるか)。</summary>
+        private static bool monitorPaging;
+
+        private static bool TraitPagesOn => ShowTraitPages.Value && Traits.Enabled != null && Traits.Enabled.Value;
+
+        /// <summary>
+        /// ページ切り替えのコマンド(既定「/s」)。だれが打ってもよい。ホストだけが拾う。
+        /// 「/s」で次のページ、「/s 0」で報酬の一覧、「/s 1」〜「/s 3」で運搬・戦闘・特殊の説明。
+        /// </summary>
+        [HarmonyPatch(typeof(PlayerAvatar), nameof(PlayerAvatar.ChatMessageSpeak))]
+        private static class PageCommandPatch
+        {
+            private static bool Prefix(string _message)
+            {
+                if (!monitorPaging || !Net.IsHost || !SemiFunc.RunIsLobby() || string.IsNullOrEmpty(_message))
+                {
+                    return true;
+                }
+                string command = PageCommand.Value.Trim();
+                string text = _message.Trim();
+                if (command.Length == 0 || !text.StartsWith(command, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+                string rest = text.Substring(command.Length).Trim();
+                if (rest.Length == 0)
+                {
+                    requestedPage = RequestNext;
+                }
+                else if (int.TryParse(rest.Normalize(System.Text.NormalizationForm.FormKC), out int number) && number >= 0 && number <= 3)
+                {
+                    requestedPage = number;
+                }
+                else
+                {
+                    return true; // 「/s」で始まる別の言葉(ほかのコマンドなど)
+                }
+                return false; // コマンド自体はホストの画面では読み上げない
             }
         }
 
@@ -251,7 +327,7 @@ namespace FloorRoles
                 return OverviewLines();
             }
             int role = page - 1;
-            var lines = new List<string> { $"<b>{role + 1} {RoleNames[role]}: {TraitNames[role]}</b>  ({page}/3)" };
+            var lines = new List<string> { $"<b>{role + 1} {RoleNames[role]}: {TraitNames[role]}</b>  ({page}/3  {PageCommand.Value.Trim()}で次へ)" };
             lines.AddRange(Traits.Description(role));
             return lines;
         }
@@ -287,6 +363,10 @@ namespace FloorRoles
                 }
                 dice.Add($"他:{Mathf.Clamp(RewardCount.Value, 1, 3)}個");
                 lines.Add("出発時ダイス " + string.Join(" ", dice));
+            }
+            if (TraitPagesOn)
+            {
+                lines.Add($"役職特性の説明: チャットで {PageCommand.Value.Trim()} (次) / {PageCommand.Value.Trim()} 1~3");
             }
             return lines;
         }

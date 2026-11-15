@@ -22,7 +22,7 @@ namespace FloorRoles
     {
         public const string PluginGuid = "shunm.FloorRoles";
         public const string PluginName = "FloorRoles";
-        public const string PluginVersion = "0.4.0";
+        public const string PluginVersion = "0.4.1";
 
         internal static ManualLogSource Log;
         internal static ConfigEntry<bool> VerboseLog;
