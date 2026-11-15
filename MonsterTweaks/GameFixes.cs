@@ -29,6 +29,26 @@ namespace MonsterTweaks
             }
         }
 
+        /// <summary>
+        /// ヘッドグラブ(EnemyHeadGrabber.StateGotoHead): 回収しに行く頭(headTarget)が消えると(抜けた人の頭は片付けられる)、
+        /// 頭の位置を読むところで毎フレーム例外が出続ける。狙いを外して歩き回りに戻す。
+        /// </summary>
+        [HarmonyPatch(typeof(EnemyHeadGrabber), nameof(EnemyHeadGrabber.StateGotoHead))]
+        private static class HeadGrabberGotoHeadPatch
+        {
+            private static Exception Finalizer(Exception __exception, EnemyHeadGrabber __instance)
+            {
+                if (!(__exception is NullReferenceException) || !Util.IsAuthority || !__instance)
+                {
+                    return __exception;
+                }
+                __instance.headTarget = null;
+                __instance.UpdateState(EnemyHeadGrabber.State.Roam);
+                Plugin.Log.LogInfo("ヘッドグラブ: 回収しに行く頭がなくなったため、歩き回りに戻しました(ゲーム本来の不具合の保護)");
+                return null;
+            }
+        }
+
         [HarmonyPatch(typeof(EnemyOogly), nameof(EnemyOogly.StatePlayerSpotted))]
         private static class OoglyPlayerSpottedPatch
         {

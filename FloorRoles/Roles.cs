@@ -398,7 +398,7 @@ namespace FloorRoles
                         contentLines = probe.CountLines(FormatMonitorLines(lines, size));
                         bool fits = contentLines <= 11 && probe.Fits(size, MonitorLineHeight.Value, contentLines + MonitorSpareLines.Value);
                         diagnosis = probe.Describe(size, MonitorLineHeight.Value);
-                        if (fits || size - 5 < 30)
+                        if (fits || size - 5 < 40)
                         {
                             break;
                         }

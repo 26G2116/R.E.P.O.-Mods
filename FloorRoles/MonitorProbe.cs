@@ -119,11 +119,31 @@ namespace FloorRoles
         internal bool Fits(int size, int lineHeight, int lines)
         {
             float pitch = Pitch(size, lineHeight);
-            if (pitch <= 0f || usableHeight <= 0f)
+            if (pitch <= 0f || usableHeight <= 0f || !Plausible(pitch, size, lineHeight))
             {
                 return true; // 測れなければ、大きさは変えない
             }
             return pitch * lines <= usableHeight;
+        }
+
+        /// <summary>
+        /// 測った行の間隔がもっともらしいか(文字の大きさに比例しているか)。
+        /// ときどき、測る文字の配置がまだ済んでいないなどで、小さい文字なのに間隔が大きく出たり、0 以下になったりする。
+        /// そのまま使うと文字がどんどん小さくなる(30% まで)ので、おかしい値は使わない。
+        /// </summary>
+        private bool Plausible(float pitch, int size, int lineHeight)
+        {
+            if (size >= 100)
+            {
+                return true;
+            }
+            float reference = Pitch(100, lineHeight);
+            if (reference <= 0f)
+            {
+                return false;
+            }
+            float expected = reference * size / 100f;
+            return Mathf.Abs(pitch - expected) <= expected * 0.5f;
         }
 
         /// <summary>ログ用の説明。</summary>
