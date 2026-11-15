@@ -4,7 +4,7 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>LoadProgress</AssemblyName>
     <RootNamespace>LoadProgress</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <DebugType>portable</DebugType>
@@ -37,6 +37,7 @@
     <Reference Include="PhotonRealtime" HintPath="$(ManagedDir)\PhotonRealtime.dll" Private="false" />
     <Reference Include="Photon3Unity3D" HintPath="$(ManagedDir)\Photon3Unity3D.dll" Private="false" />
     <Reference Include="BepInEx" HintPath="$(BepInExCoreDir)\BepInEx.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(BepInExCoreDir)\0Harmony.dll" Private="false" />
   </ItemGroup>
 
   <!-- Thunderstore / Gale 用パッケージ情報 -->

@@ -35,6 +35,8 @@ namespace LoadProgress
             public string Detail;
         }
 
+        internal static ProgressTracker Instance;
+
         internal readonly List<Row> Rows = new List<Row>();
         internal bool SessionActive;
         internal float SessionStartTime;
@@ -54,6 +56,13 @@ namespace LoadProgress
         private readonly Dictionary<int, int> masks = new Dictionary<int, int>();
         private readonly HashSet<int> reloadReadyActors = new HashSet<int>();
         private readonly HashSet<int> moddedActors = new HashSet<int>();
+        /// <summary>自分の PC で直接確かめた段階(全員共通の合図・推定で埋めた段階を含まない)。途中参加の表示に使う。</summary>
+        private int selfObserved;
+
+        private void Awake()
+        {
+            Instance = this;
+        }
 
         private void OnEnable()
         {
@@ -280,7 +289,11 @@ namespace LoadProgress
                     if (lg.EnemyReadyPlayerList.Contains(p)) m |= Steps.Bit(Steps.Enemies);
                     if (avatar != null && avatar.levelAnimationCompleted) m |= Steps.Bit(Steps.Animation);
                 }
-                if (p.IsLocal) m |= ObserveSelf(lg, lgValid, avatar);
+                if (p.IsLocal)
+                {
+                    selfObserved = ObserveSelf(lg, lgValid, avatar);
+                    m |= selfObserved;
+                }
                 if (reported.TryGetValue(actor, out int r)) m |= r;
 
                 // 生成完了の合図を受けた後、スポーン済みの人は生成完了とみなす
@@ -413,7 +426,8 @@ namespace LoadProgress
             }
             if (actors.Count == 0) return;
 
-            object[] content = { ProtocolVersion, actors.ToArray(), values.ToArray() };
+            // 4 つ目: 自分で直接確かめた段階(0.2.0 から。0.1.0 は 3 つ目までしか読まないので互換)
+            object[] content = { ProtocolVersion, actors.ToArray(), values.ToArray(), selfObserved };
             var options = new RaiseEventOptions { Receivers = ReceiverGroup.Others };
             PhotonNetwork.RaiseEvent(EventCode, content, options, SendOptions.SendReliable);
         }
@@ -421,13 +435,20 @@ namespace LoadProgress
         private void OnEvent(EventData e)
         {
             if (e.Code != EventCode) return;
-            // 表示していない間の報告は捨てる(前のロードの報告が混ざらないように)。
-            // 相手は 1 秒ごとに送り直すので、こちらのセッションが始まればすぐ届く。
-            if (!SessionActive) return;
-
             if (!(e.CustomData is object[] data) || data.Length < 3) return;
             if (!(data[0] is byte version) || version != ProtocolVersion) return;
             if (!(data[1] is int[] actors) || !(data[2] is int[] values) || actors.Length != values.Length) return;
+
+            // 途中参加の人の、本人の報告(こちらは読み込み中でなくても受け取る)
+            var lateJoin = LateJoinTracker.Instance;
+            if (lateJoin != null)
+            {
+                lateJoin.Report(e.Sender, data.Length >= 4 && data[3] is int observed ? observed : -1);
+            }
+
+            // 表示していない間の報告は捨てる(前のロードの報告が混ざらないように)。
+            // 相手は 1 秒ごとに送り直すので、こちらのセッションが始まればすぐ届く。
+            if (!SessionActive) return;
 
             Room room = PhotonNetwork.CurrentRoom;
             Player sender = room?.GetPlayer(e.Sender);
@@ -447,9 +468,15 @@ namespace LoadProgress
 
         private void OnGUI()
         {
+            float y = 0f;
             if (SessionActive && Rows.Count > 0)
             {
-                Overlay.Draw(this);
+                y = Overlay.Draw(this) + 8f;
+            }
+            var lateJoin = LateJoinTracker.Instance;
+            if (lateJoin != null && lateJoin.Joiners.Count > 0)
+            {
+                Overlay.DrawLateJoin(lateJoin, y);
             }
         }
     }

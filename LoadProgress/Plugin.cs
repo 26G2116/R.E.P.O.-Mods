@@ -10,7 +10,7 @@ namespace LoadProgress
     {
         public const string PluginGuid = "shunm.LoadProgress";
         public const string PluginName = "LoadProgress";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.2.0";
 
         internal static ManualLogSource Log;
 
@@ -21,6 +21,10 @@ namespace LoadProgress
         internal static ConfigEntry<float> Scale;
         internal static ConfigEntry<float> LingerSeconds;
         internal static ConfigEntry<bool> LogTransitions;
+        internal static ConfigEntry<bool> LateJoinEnabled;
+        internal static ConfigEntry<float> LateJoinWarnSeconds;
+        internal static ConfigEntry<float> LateJoinStuckSeconds;
+        internal static ConfigEntry<float> LateJoinHideSeconds;
 
         private void Awake()
         {
@@ -36,6 +40,14 @@ namespace LoadProgress
             LingerSeconds = Config.Bind("Display", "LingerSeconds", 2f, "ロード完了後に表示を残す秒数");
             LogTransitions = Config.Bind("Debug", "LogTransitions", true,
                 "各プレイヤーのステップ進行をログ(LogOutput.log)に出す");
+            LateJoinEnabled = Config.Bind("LateJoin", "Enabled", true,
+                "レベルの途中で入ってきた人(途中参加 MOD)の読み込みの進み具合を表示する(参加者が MOD なしでも分かる)");
+            LateJoinWarnSeconds = Config.Bind("LateJoin", "WarnSeconds", 20f,
+                "途中参加の人が 1 つの段階でこの秒数止まったら、橙色にしてログに出す");
+            LateJoinStuckSeconds = Config.Bind("LateJoin", "StuckSeconds", 45f,
+                "途中参加の人が 1 つの段階でこの秒数止まったら、赤色にしてログに出す(読み込みが終わらない可能性)");
+            LateJoinHideSeconds = Config.Bind("LateJoin", "HideSeconds", 5f,
+                "途中参加の人の読み込みが終わった(または抜けた)あと、表示を残す秒数");
 
             if (!Enabled.Value)
             {
@@ -48,6 +60,8 @@ namespace LoadProgress
             go.hideFlags = HideFlags.HideAndDontSave;
             DontDestroyOnLoad(go);
             go.AddComponent<ProgressTracker>();
+            go.AddComponent<LateJoinTracker>();
+            new HarmonyLib.Harmony(PluginGuid).PatchAll(typeof(Plugin).Assembly);
 
             Log.LogInfo($"{PluginName} {PluginVersion} を読み込みました");
         }

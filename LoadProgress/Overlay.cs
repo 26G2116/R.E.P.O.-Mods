@@ -49,16 +49,22 @@ namespace LoadProgress
             title = new GUIStyle(label) { fontSize = 18, fontStyle = FontStyle.Bold };
         }
 
-        public static void Draw(ProgressTracker t)
+        private static Matrix4x4 Begin()
         {
             EnsureStyles();
-
             float scale = Mathf.Max(0.5f, Screen.height / 1080f * Mathf.Max(0.1f, Plugin.Scale.Value));
             Matrix4x4 oldMatrix = GUI.matrix;
             GUI.matrix = Matrix4x4.TRS(
                 new Vector3(Plugin.PositionX.Value, Plugin.PositionY.Value, 0f),
                 Quaternion.identity,
                 new Vector3(scale, scale, 1f));
+            return oldMatrix;
+        }
+
+        /// <summary>ロード進捗の表を描く。描いた高さ(表示の大きさを掛ける前)を返す。</summary>
+        public static float Draw(ProgressTracker t)
+        {
+            Matrix4x4 oldMatrix = Begin();
 
             int rows = t.Rows.Count;
             float width = Pad * 2 + NameWidth + CellWidth * Steps.Count + StatusWidth;
@@ -119,6 +125,79 @@ namespace LoadProgress
             // 凡例
             GUI.Label(new Rect(x0, y, width - Pad * 2, RowHeight),
                 $"<color={ColDim}><size=13>■完了  ▶進行中  ・未着手    * MOD未導入(一部の段階は推定)</size></color>", label);
+
+            GUI.matrix = oldMatrix;
+            return height;
+        }
+
+        private const float JoinStatusWidth = 280f;
+        private const string ColWarn = "#FF9A3C";
+        private const string ColStuck = "#FF5050";
+
+        /// <summary>途中参加の人の進み具合を描く(y はロード進捗の表の下にずらす分)。</summary>
+        public static void DrawLateJoin(LateJoinTracker t, float y)
+        {
+            Matrix4x4 oldMatrix = Begin();
+            int rows = t.Joiners.Count;
+            float width = Pad * 2 + NameWidth + CellWidth * JoinSteps.Count + JoinStatusWidth;
+            float height = Pad * 2 + TitleHeight + RowHeight * (rows + 1);
+            GUI.DrawTexture(new Rect(0f, y, width, height), background);
+
+            float x0 = Pad;
+            y += Pad;
+            GUI.Label(new Rect(x0, y, width - Pad * 2, TitleHeight), "途中参加の読み込み", title);
+            y += TitleHeight;
+
+            // 見出し
+            float cx = x0 + NameWidth;
+            for (int i = 0; i < JoinSteps.Count; i++)
+            {
+                GUI.Label(new Rect(cx + CellWidth * i, y, CellWidth, RowHeight), $"<color={ColDim}>{i + 1}</color>", cell);
+            }
+            y += RowHeight;
+
+            float now = Time.unscaledTime;
+            foreach (LateJoinTracker.Joiner joiner in t.Joiners)
+            {
+                string name = joiner.Name;
+                if (!joiner.Modded) name += $" <color={ColDim}>*</color>";
+                GUI.Label(new Rect(x0, y, NameWidth - 4f, RowHeight), name, label);
+
+                int current = JoinSteps.Current(joiner.Mask);
+                bool active = joiner.DoneAt < 0f && joiner.LeftAt < 0f;
+                float stalled = current == JoinSteps.Moving ? 0f : now - joiner.StepSince; // 動くのを待っているだけなら止まっていない
+                string currentColor = stalled >= Plugin.LateJoinStuckSeconds.Value ? ColStuck
+                    : stalled >= Plugin.LateJoinWarnSeconds.Value ? ColWarn : ColCurrent;
+                for (int i = 0; i < JoinSteps.Count; i++)
+                {
+                    string mark;
+                    if (JoinSteps.Has(joiner.Mask, i)) mark = $"<color={ColDone}>■</color>";
+                    else if (i == current && active) mark = $"<color={currentColor}>▶</color>";
+                    else mark = $"<color={ColPending}>・</color>";
+                    GUI.Label(new Rect(cx + CellWidth * i, y, CellWidth, RowHeight), mark, cell);
+                }
+
+                string status;
+                if (joiner.LeftAt >= 0f)
+                {
+                    status = current < JoinSteps.Count
+                        ? $"<color={ColStuck}>抜けました</color> <color={ColDim}>({JoinSteps.Labels[current]}の途中)</color>"
+                        : $"<color={ColDim}>抜けました</color>";
+                }
+                else if (joiner.DoneAt >= 0f)
+                {
+                    status = $"<color={ColDone}>完了</color> <color={ColDim}>{joiner.DoneAt - joiner.JoinedAt:0.0}s</color>";
+                }
+                else
+                {
+                    status = $"<color={currentColor}>{current + 1} {JoinSteps.Labels[current]}</color>";
+                    if (!string.IsNullOrEmpty(joiner.Detail)) status += $" <color={ColDim}>{joiner.Detail}</color>";
+                    status += $" <color={ColDim}>{now - joiner.JoinedAt:0.0}s</color>";
+                    if (stalled >= Plugin.LateJoinWarnSeconds.Value) status += $" <color={currentColor}>(止まって{stalled:0}s)</color>";
+                }
+                GUI.Label(new Rect(cx + CellWidth * JoinSteps.Count + 8f, y, JoinStatusWidth - 8f, RowHeight), status, label);
+                y += RowHeight;
+            }
 
             GUI.matrix = oldMatrix;
         }
