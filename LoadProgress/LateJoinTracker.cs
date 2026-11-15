@@ -84,6 +84,9 @@ namespace LoadProgress
             public bool GeneratedPosSet;
             public Vector3 GeneratedPos;
             public string Detail;
+            /// <summary>マップの送り直しをした回数と、次にしてよい時刻。</summary>
+            public int MapResends;
+            public float NextMapResendAt;
         }
 
         internal readonly List<Joiner> Joiners = new List<Joiner>();
@@ -310,6 +313,16 @@ namespace LoadProgress
                 return;
             }
 
+            // マップ受信で止まっている: ホストが足りないかもしれないマップの情報を送り直す
+            if (current == JoinSteps.Modules && isMaster && Plugin.LateJoinMapResend.Value && JoinSteps.Has(m, JoinSteps.Avatar)
+                && now - joiner.JoinedAt >= Plugin.LateJoinMapResendSeconds.Value && joiner.MapResends < MaxMapResends
+                && now >= joiner.NextMapResendAt)
+            {
+                ResendMap(joiner, player, lg, joiner.MapResends == 0);
+                joiner.MapResends++;
+                joiner.NextMapResendAt = now + MapResendInterval;
+            }
+
             // 止まっている段階を記録する(どこで止まったかを、あとでログから分かるように)
             if (joiner.WarnLevel < 2 && stalled >= Plugin.LateJoinStuckSeconds.Value)
             {
@@ -321,6 +334,88 @@ namespace LoadProgress
                 joiner.WarnLevel = 1;
                 Plugin.Log.LogWarning($"[途中参加] {joiner.Name}: 「{current + 1} {JoinSteps.Labels[current]}」で {stalled:0} 秒止まっています");
             }
+        }
+
+        private const int MaxMapResends = 3;
+        private const float MapResendInterval = 10f;
+
+        /// <summary>
+        /// マップ受信で止まった参加者に、マップの情報を送り直す(ホストだけ)。
+        ///
+        /// 参加者の画面は、マップのパーツ(Module)が「全部で何個か」の合図(ModuleAmountRPC、部屋の記録に残る)を受け取り、
+        /// その数だけパーツのつながりの合図(ModuleConnectionSetRPC。記録に残らない)を受け取るまで先に進まない。
+        /// つながりの合図は途中参加 MOD(LateJoinNow)が送り直しているが、無効になっているパーツは数えていない。
+        /// - 無効になっているパーツのつながりの合図を送る(最初の 1 回だけ。同じパーツに 2 回送ると向きの処理が二重になるので、
+        ///   途中参加 MOD が送ったパーツには送らない)
+        /// - 「全部で何個か」を送り直す。ホストで送れるパーツが目標の数より少ない(パーツが消えている)なら、送れる数にする
+        /// どの場合も、パーツの数をログに出す(原因を調べるため)。
+        /// </summary>
+        private void ResendMap(Joiner joiner, Player player, LevelGenerator lg, bool first)
+        {
+            if (lg == null || lg.PhotonView == null)
+            {
+                return;
+            }
+            int total = 0, inactive = 0, notSetup = 0, noView = 0, mega = 0, settable = 0, sent = 0;
+            foreach (Module module in Object.FindObjectsByType<Module>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (module == null)
+                {
+                    continue;
+                }
+                total++;
+                bool active = module.gameObject.activeInHierarchy;
+                if (!active) inactive++;
+                bool isMega = module.type == Module.Type.Mega;
+                if (isMega) mega++;
+                PhotonView view = module.GetComponent<PhotonView>();
+                if (view == null || view.ViewID == 0)
+                {
+                    noView++;
+                    continue;
+                }
+                if (!module.SetupDone)
+                {
+                    notSetup++;
+                    continue;
+                }
+                settable++;
+                if (!active && first)
+                {
+                    try
+                    {
+                        if (isMega)
+                        {
+                            view.RPC("ModuleConnectionSetMegaRPC", player, module.ConnectingTopRight, module.ConnectingTopLeft,
+                                module.ConnectingRightTop, module.ConnectingRightBot, module.ConnectingBottomRight, module.ConnectingBottomLeft,
+                                module.ConnectingLeftTop, module.ConnectingLeftBot, module.First);
+                        }
+                        else
+                        {
+                            view.RPC("ModuleConnectionSetRPC", player, module.ConnectingTop, module.ConnectingBottom,
+                                module.ConnectingRight, module.ConnectingLeft, module.First);
+                        }
+                        sent++;
+                    }
+                    catch (System.Exception e)
+                    {
+                        Plugin.Log.LogWarning($"[途中参加] マップのパーツを送れませんでした: {e.Message}");
+                    }
+                }
+            }
+            int target = lg.ModulesSpawnedTarget;
+            int amount = settable > 0 && settable < target ? settable : target;
+            try
+            {
+                lg.PhotonView.RPC("ModuleAmountRPC", player, amount);
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning($"[途中参加] パーツの数を送れませんでした: {e.Message}");
+            }
+            Plugin.Log.LogWarning($"[途中参加] {joiner.Name}: マップ受信で止まっているので送り直しました({joiner.MapResends + 1} 回目)。" +
+                                  $"ホストのパーツ: 見つかった {total}、目標 {target}、無効 {inactive}、準備前 {notSetup}、ID なし {noView}、大きいパーツ {mega}。" +
+                                  $"無効のパーツ {sent} 個のつながりと、パーツの数 {amount} を送りました");
         }
 
         private static string Detail(Joiner joiner)

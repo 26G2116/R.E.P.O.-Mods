@@ -10,7 +10,7 @@ namespace LoadProgress
     {
         public const string PluginGuid = "shunm.LoadProgress";
         public const string PluginName = "LoadProgress";
-        public const string PluginVersion = "0.2.0";
+        public const string PluginVersion = "0.3.0";
 
         internal static ManualLogSource Log;
 
@@ -25,6 +25,8 @@ namespace LoadProgress
         internal static ConfigEntry<float> LateJoinWarnSeconds;
         internal static ConfigEntry<float> LateJoinStuckSeconds;
         internal static ConfigEntry<float> LateJoinHideSeconds;
+        internal static ConfigEntry<bool> LateJoinMapResend;
+        internal static ConfigEntry<float> LateJoinMapResendSeconds;
 
         private void Awake()
         {
@@ -48,6 +50,10 @@ namespace LoadProgress
                 "途中参加の人が 1 つの段階でこの秒数止まったら、赤色にしてログに出す(読み込みが終わらない可能性)");
             LateJoinHideSeconds = Config.Bind("LateJoin", "HideSeconds", 5f,
                 "途中参加の人の読み込みが終わった(または抜けた)あと、表示を残す秒数");
+            LateJoinMapResend = Config.Bind("LateJoin", "MapResend", true,
+                "(ホスト)途中参加の人が「マップ受信」で止まったら、足りないかもしれないマップの情報を送り直す。パーツの数をログに出す");
+            LateJoinMapResendSeconds = Config.Bind("LateJoin", "MapResendSeconds", 8f,
+                "(ホスト)参加からこの秒数たっても「マップ受信」が終わらなければ送り直す(10 秒ごとに最大 3 回)");
 
             if (!Enabled.Value)
             {
