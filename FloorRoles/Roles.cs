@@ -236,38 +236,61 @@ namespace FloorRoles
                 {
                     due = Net.TruckPageFinished() || waited >= 90f;
                 }
-                else if (request != NoRequest)
-                {
-                    due = true;
-                    if (request >= 0)
-                    {
-                        page = Mathf.Clamp(request, 0, 3);
-                    }
-                }
                 else
                 {
-                    due = PageSeconds.Value > 0f && Time.time >= nextPageAt;
+                    due = request != NoRequest || (PageSeconds.Value > 0f && Time.time >= nextPageAt);
                 }
-                if (due && Net.TruckMessage(MonitorText(PageLines(page), page)))
+                // 頼まれたページ(打ち直しの最中に頼まれた分も含む)は、書くときに使う
+                int target = page;
+                if (due && request >= 0)
                 {
-                    if (requestedPage == request)
+                    target = Mathf.Clamp(request, 0, 3);
+                }
+                else if (due && request == RequestNext && first && monitorPaging)
+                {
+                    target = (page + 1) % 4; // 打ち直しの最中の「次へ」: 打ち直す予定だったページの次
+                }
+                if (due && Net.TruckMessage(MonitorText(PageLines(target), target)))
+                {
+                    page = target;
+                    if (request != NoRequest && requestedPage == request)
                     {
                         requestedPage = NoRequest;
                     }
+                    int written = page;
                     page = paging ? (page + 1) % 4 : 0;
                     nextPageAt = Time.time + PageSeconds.Value;
                     monitorPaging = paging;
-                    if (first)
+                    first = false;
+                    // 古い文章が消えて、新しいページが枠に収まったかを確かめる。見切れていると、ゲームが古い行を消さなくなり、
+                    // 次のページも見えなくなる。そのときは画面を最初から打ち直させ、文字を小さくして書き直す
+                    yield return new WaitForSeconds(1.5f);
+                    var screen = TruckScreenText.instance;
+                    if (screen && screen.textMesh && generation == Phase.Generation && SemiFunc.RunIsLobby())
                     {
-                        first = false;
-                        // 古い文章が消えたかを、少しあとでログに出す(見切れの調査用)
-                        yield return new WaitForSeconds(2f);
-                        var screen = TruckScreenText.instance;
-                        if (screen && screen.textMesh)
+                        string text = screen.textMesh.text ?? "";
+                        bool truncated = screen.textMesh.isTextTruncated;
+                        bool oldText = text.Contains(":</b>");
+                        Plugin.Log.LogInfo($"モニター(ページ {written} を書いた 1.5 秒後): 数えた行 {screen.textMesh.textInfo.lineCount}、" +
+                                           $"改行 {text.Count(c => c == '\n')}、見切れ {truncated}、古い文章が残っている {oldText}");
+                        if ((truncated || oldText) && lastMonitorSize > MinMonitorSize)
                         {
-                            string text = screen.textMesh.text ?? "";
-                            Plugin.Log.LogInfo($"モニター(2 秒後): 数えた行 {screen.textMesh.textInfo.lineCount}、改行 {text.Count(c => c == '\n')}、" +
-                                               $"古い文章の名前の行が残っている: {text.Contains(":</b>")}");
+                            // 実際に使った大きさより 10% 小さくなるようにする(測って小さくしていた分も含める)
+                            monitorSizePenalty = Mathf.Max(monitorSizePenalty + 10, MonitorTextSize.Value - lastMonitorSize + 10);
+                            Plugin.Log.LogWarning($"モニター: ページ {written} が見切れたので、画面を打ち直させて、文字を小さくして書き直します" +
+                                                  $"(上限 {Mathf.Max(MinMonitorSize, MonitorTextSize.Value - monitorSizePenalty)}%)");
+                            if (SemiFunc.IsMultiplayer())
+                            {
+                                screen.photonView.RPC("InitializeTextTypingRPC", Photon.Pun.RpcTarget.All);
+                            }
+                            else
+                            {
+                                screen.InitializeTextTypingLogic();
+                            }
+                            page = written;
+                            first = true;
+                            waited = 0f;
+                            continue;
                         }
                     }
                     if (!paging)
@@ -386,7 +409,7 @@ namespace FloorRoles
         private static string MonitorText(List<string> lines, int page)
         {
             // 文字の大きさを決める: 役職の説明が枠に収まる大きさ(設定の大きさから 5% ずつ小さくして探す)
-            int size = MonitorTextSize.Value;
+            int size = Mathf.Max(MinMonitorSize, MonitorTextSize.Value - monitorSizePenalty);
             int contentLines = lines.Count;
             string diagnosis = "測定できませんでした";
             using (var probe = MonitorProbe.Create())
@@ -396,29 +419,37 @@ namespace FloorRoles
                     for (;; size -= 5)
                     {
                         contentLines = probe.CountLines(FormatMonitorLines(lines, size));
-                        bool fits = contentLines <= 11 && probe.Fits(size, MonitorLineHeight.Value, contentLines + MonitorSpareLines.Value);
+                        bool fits = contentLines <= 11 && probe.Fits(size, MonitorLineHeight.Value, contentLines + MonitorSpareLines.Value)
+                                    && probe.FitsText(FlushLines(12, size) + "\n" + FormatMonitorLines(lines, size));
                         diagnosis = probe.Describe(size, MonitorLineHeight.Value);
-                        if (fits || size - 5 < 40)
+                        if (fits || size - 5 < MinMonitorSize)
                         {
                             break;
                         }
                     }
                 }
             }
+            lastMonitorSize = size;
             Plugin.Log.LogInfo($"モニター(ページ {page}): 文字 {size}%、{contentLines} 行({diagnosis})");
-            return FlushLines(12) + "\n" + FormatMonitorLines(lines, size);
+            return FlushLines(12, size) + "\n" + FormatMonitorLines(lines, size);
         }
+
+        private const int MinMonitorSize = 30;
+        /// <summary>モニターで見切れたときに、次から小さくする分(%)。トラックを出ても残す。</summary>
+        private static int monitorSizePenalty;
+        /// <summary>最後にモニターに書いた文字の大きさ(%)。</summary>
+        private static int lastMonitorSize = 100;
 
         /// <summary>
         /// 見えない、とても薄い行(古い文章を押し出す用)。最後の 1 行だけは、次の行(役職の説明)との間を
         /// ふつうの行の間隔にする(薄いままだと、役職の説明の 1 行目が上にはみ出す)。
         /// </summary>
-        private static string FlushLines(int count)
+        private static string FlushLines(int count, int size)
         {
             var parts = new List<string>();
             for (int i = 0; i < count; i++)
             {
-                int height = i == count - 1 ? MonitorLineHeight.Value : 1;
+                int height = i == count - 1 ? MonitorProbe.ScaledLineHeight(MonitorLineHeight.Value, size) : 1;
                 parts.Add($"<line-height={height}%><size=1%><color=#00000000>.</color></size>");
             }
             return string.Join("\n", parts);
@@ -430,7 +461,7 @@ namespace FloorRoles
         /// </summary>
         private static string FormatMonitorLines(List<string> lines, int size)
         {
-            string lineHeight = $"<line-height={MonitorLineHeight.Value}%>";
+            string lineHeight = $"<line-height={MonitorProbe.ScaledLineHeight(MonitorLineHeight.Value, size)}%>";
             var text = string.Join("\n", lines.Select(l => size >= 100 ? lineHeight + l : $"{lineHeight}<size={size}%>{l}</size>"));
             return text + "</line-height>";
         }

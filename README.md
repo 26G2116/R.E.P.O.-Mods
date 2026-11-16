@@ -17,7 +17,7 @@
 ## MOD の一覧
 | MOD | 版 | 内容 | 入れる人 |
 |---|---|---|---|
-| [**FloorRoles**](FloorRoles/Package/README.md) | 0.5.1 | レベルごとに役職を選ぶ。ショップの所持金を個人ごとに分ける | ホストだけ |
+| [**FloorRoles**](FloorRoles/Package/README.md) | 0.5.2 | レベルごとに役職を選ぶ。ショップの所持金を個人ごとに分ける | ホストだけ |
 | [**MonsterTweaks**](MonsterTweaks/Package/README.md) | 0.10.8 | モンスター 27 体を個別に強化する。全モンスター共通の「スタン無効」「移動速度倍率」「出現させる」 | ホストだけ |
 | [**DroneTweaks**](DroneTweaks/Package/README.md) | 0.5.3 | 削除されたドローン・オーブを店に戻し、新しい効果をつける | ホストだけ |
 | [**AIMonsters**](AIMonsters/Package/README.md) | 0.9.0 | Azure OpenAI の AI にローブ・ルーム・クリーンアップクルーを動かさせる。話せる味方のローブを呼べる | ホストだけ |

@@ -115,10 +115,32 @@ namespace FloorRoles
             return (lines[0].baseline - lines[count - 1].baseline) / (count - 1);
         }
 
-        /// <summary>指定した大きさの行 lines 行が、枠に収まるか。</summary>
+        /// <summary>
+        /// 文字の大きさに合わせた行の高さ。line-height タグは文字の大きさ(size タグ)によらず、元の大きさの行の高さに対する割合なので、
+        /// そのままだと文字を小さくしても行の間隔が縮まらない(枠に入る行が増えない)。
+        /// </summary>
+        internal static int ScaledLineHeight(int lineHeight, int size)
+        {
+            return size >= 100 ? lineHeight : Mathf.Max(1, Mathf.RoundToInt(lineHeight * size / 100f));
+        }
+
+        /// <summary>送る文章全体(押し出し用の行を含む)が、枠の高さに収まるか。測れなければ true。</summary>
+        internal bool FitsText(string text)
+        {
+            int count = CountLines(text);
+            if (count <= 0 || usableHeight <= 0f)
+            {
+                return true;
+            }
+            var lines = probe.textInfo.lineInfo;
+            float height = lines[0].ascender - lines[count - 1].descender;
+            return height <= 0f || height <= usableHeight;
+        }
+
+        /// <summary>指定した大きさの行 lines 行が、枠に収まるか(lineHeight は 100% の文字のときの行の高さ)。</summary>
         internal bool Fits(int size, int lineHeight, int lines)
         {
-            float pitch = Pitch(size, lineHeight);
+            float pitch = Pitch(size, ScaledLineHeight(lineHeight, size));
             if (pitch <= 0f || usableHeight <= 0f || !Plausible(pitch, size, lineHeight))
             {
                 return true; // 測れなければ、大きさは変えない
@@ -149,7 +171,7 @@ namespace FloorRoles
         /// <summary>ログ用の説明。</summary>
         internal string Describe(int size, int lineHeight)
         {
-            float pitch = Pitch(size, lineHeight);
+            float pitch = Pitch(size, ScaledLineHeight(lineHeight, size));
             int capacity = pitch > 0f ? Mathf.FloorToInt(usableHeight / pitch) : -1;
             return $"枠の高さ {usableHeight:0.#}、行の間隔 {pitch:0.##}、枠に入る行 {capacity}、" +
                    $"はみ出し {source.overflowMode}、配置 {source.alignment}、元の文字 {source.fontSize:0.#}";
