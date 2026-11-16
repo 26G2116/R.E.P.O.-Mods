@@ -309,9 +309,9 @@ namespace LoadProgress
 
         private void OnEvent(EventData data)
         {
-            // 200 以上は Photon 自身、123・124・199(キック)はゲーム本体、ProgressTracker.EventCode はこの MOD が使う番号
+            // 200 以上は Photon 自身、123・124・199(キック)はゲーム本体、ProgressTracker.EventCode・MapReport.EventCode はこの MOD が使う番号
             if (roomName == null || data.Code >= 200 || data.Code == 123 || data.Code == 124 || data.Code == 199
-                || data.Code == ProgressTracker.EventCode)
+                || data.Code == ProgressTracker.EventCode || data.Code == MapReport.EventCode)
             {
                 return;
             }

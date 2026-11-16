@@ -21,7 +21,7 @@
 | [**MonsterTweaks**](MonsterTweaks/Package/README.md) | 0.10.8 | モンスター 27 体を個別に強化する。全モンスター共通の「スタン無効」「移動速度倍率」「出現させる」 | ホストだけ |
 | [**DroneTweaks**](DroneTweaks/Package/README.md) | 0.5.3 | 削除されたドローン・オーブを店に戻し、新しい効果をつける | ホストだけ |
 | [**AIMonsters**](AIMonsters/Package/README.md) | 0.9.0 | Azure OpenAI の AI にローブ・ルーム・クリーンアップクルーを動かさせる。話せる味方のローブを呼べる | ホストだけ |
-| [**LoadProgress**](LoadProgress/Package/README.md) | 0.4.0 | ロードと途中参加の読み込みの進み具合を表示する。止まった途中参加の人にマップを送り直す。入った部屋の様子をログに残す | 見たい人(送り直しはホスト) |
+| [**LoadProgress**](LoadProgress/Package/README.md) | 0.4.1 | ロードと途中参加の読み込みの進み具合を表示する。止まった途中参加の人にマップを送り直す。入った部屋の様子をログに残す | 見たい人(送り直しはホスト) |
 | [Translation](Translation/README.md) | — | ほかの作者の MOD の英語を日本語にする翻訳表(XUnity.AutoTranslator 用) | 使いたい人 |
 
 MOD の名前をクリックすると、それぞれの説明書を開けます。

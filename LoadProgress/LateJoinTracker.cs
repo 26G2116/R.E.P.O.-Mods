@@ -87,6 +87,10 @@ namespace LoadProgress
             /// <summary>マップの送り直しをした回数と、次にしてよい時刻。</summary>
             public int MapResends;
             public float NextMapResendAt;
+            /// <summary>読み込みを先に進めたか(マップ受信が終わらないときの最後の手段)。</summary>
+            public bool ForcePassed;
+            /// <summary>参加者の LoadProgress からの、マップの段階の報告(MapReport)。なければ null。</summary>
+            public MapReport.Report MapReport;
         }
 
         internal readonly List<Joiner> Joiners = new List<Joiner>();
@@ -181,6 +185,19 @@ namespace LoadProgress
                     {
                         joiner.Reported |= observed & Steps.AllMask;
                     }
+                }
+            }
+        }
+
+        /// <summary>参加者の PC からの、マップの段階の報告(MapReport が受け取って渡す)。</summary>
+        internal void MapReported(int actor, MapReport.Report report)
+        {
+            foreach (var joiner in Joiners)
+            {
+                if (joiner.Actor == actor)
+                {
+                    joiner.Modded = true;
+                    joiner.MapReport = report;
                 }
             }
         }
@@ -322,6 +339,15 @@ namespace LoadProgress
                 joiner.MapResends++;
                 joiner.NextMapResendAt = now + MapResendInterval;
             }
+            // 送り直しても終わらない: 最後の手段として、読み込みを先に進めさせる
+            else if (current == JoinSteps.Modules && isMaster && Plugin.LateJoinMapForcePass.Value && JoinSteps.Has(m, JoinSteps.Avatar)
+                     && !joiner.ForcePassed && (!Plugin.LateJoinMapResend.Value || joiner.MapResends >= MaxMapResends)
+                     && now >= joiner.NextMapResendAt // 最後の送り直しのあと、効くかどうか待ってから
+                     && now - joiner.JoinedAt >= Plugin.LateJoinMapForcePassSeconds.Value)
+            {
+                joiner.ForcePassed = true;
+                ForcePass(joiner, player, lg);
+            }
 
             // 止まっている段階を記録する(どこで止まったかを、あとでログから分かるように)
             if (joiner.WarnLevel < 2 && stalled >= Plugin.LateJoinStuckSeconds.Value)
@@ -337,7 +363,47 @@ namespace LoadProgress
         }
 
         private const int MaxMapResends = 3;
-        private const float MapResendInterval = 10f;
+        private const float MapResendInterval = 6f;
+
+        /// <summary>
+        /// 参加者の画面のマップの段階を、足りないパーツを待たずに抜けさせる(ホストだけ)。
+        /// - 「全員そろった」合図(AllPlayerSpawnedRPC)を送る(これがないと、マップの段階に入れない)
+        /// - パーツの数を、参加者がすでに準備できた数(報告がなければ 0)にする。ゲームは「準備できた数 >= パーツの数」で先に進む
+        /// 届いていないパーツは、その人の画面では欠けたままになる。
+        /// </summary>
+        private void ForcePass(Joiner joiner, Player player, LevelGenerator lg)
+        {
+            int amount = 0;
+            if (joiner.MapReport != null)
+            {
+                amount = Mathf.Clamp(joiner.MapReport.Spawned, 0, lg.ModulesSpawnedTarget);
+            }
+            try
+            {
+                SendAllPlayersReady(player);
+                lg.PhotonView.RPC("ModuleAmountRPC", player, amount);
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning($"[途中参加] 読み込みを先に進められませんでした: {e.Message}");
+                return;
+            }
+            string report = joiner.MapReport != null
+                ? $"本人の報告では、準備できたパーツ {joiner.MapReport.Spawned} / {joiner.MapReport.Target}"
+                : "本人の報告はありません(LoadProgress なし)";
+            Plugin.Log.LogWarning($"[途中参加] {joiner.Name}: マップ受信が終わらないので、読み込みを先に進めさせました" +
+                                  $"(パーツの数を {amount} にしました。{report})。この人の画面では、マップの一部が欠けているかもしれません");
+        }
+
+        /// <summary>「全員そろった」合図を、その人にだけ送る(受け取った側は、マップの段階に入れるようになるだけ。何度送っても同じ)。</summary>
+        private static void SendAllPlayersReady(Player player)
+        {
+            var network = NetworkManager.instance;
+            if (network != null && network.photonView != null)
+            {
+                network.photonView.RPC("AllPlayerSpawnedRPC", player);
+            }
+        }
 
         /// <summary>
         /// マップ受信で止まった参加者に、マップの情報を送り直す(ホストだけ)。
@@ -407,6 +473,7 @@ namespace LoadProgress
             int amount = settable > 0 && settable < target ? settable : target;
             try
             {
+                SendAllPlayersReady(player); // マップの段階の手前で止まっている場合のため
                 lg.PhotonView.RPC("ModuleAmountRPC", player, amount);
             }
             catch (System.Exception e)

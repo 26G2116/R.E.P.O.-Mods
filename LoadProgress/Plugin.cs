@@ -10,7 +10,7 @@ namespace LoadProgress
     {
         public const string PluginGuid = "shunm.LoadProgress";
         public const string PluginName = "LoadProgress";
-        public const string PluginVersion = "0.4.0";
+        public const string PluginVersion = "0.4.1";
 
         internal static ManualLogSource Log;
 
@@ -28,6 +28,9 @@ namespace LoadProgress
         internal static ConfigEntry<bool> LateJoinMapResend;
         internal static ConfigEntry<float> LateJoinMapResendSeconds;
         internal static ConfigEntry<bool> ObserveEnabled;
+        internal static ConfigEntry<bool> LateJoinMapForcePass;
+        internal static ConfigEntry<float> LateJoinMapForcePassSeconds;
+        internal static ConfigEntry<bool> LateJoinReportMap;
 
         private void Awake()
         {
@@ -54,7 +57,14 @@ namespace LoadProgress
             LateJoinMapResend = Config.Bind("LateJoin", "MapResend", true,
                 "(ホスト)途中参加の人が「マップ受信」で止まったら、足りないかもしれないマップの情報を送り直す。パーツの数をログに出す");
             LateJoinMapResendSeconds = Config.Bind("LateJoin", "MapResendSeconds", 8f,
-                "(ホスト)参加からこの秒数たっても「マップ受信」が終わらなければ送り直す(10 秒ごとに最大 3 回)");
+                "(ホスト)参加からこの秒数たっても「マップ受信」が終わらなければ送り直す(6 秒ごとに最大 3 回)");
+            LateJoinMapForcePass = Config.Bind("LateJoin", "MapForcePass", true,
+                "(ホスト)送り直しても「マップ受信」が終わらない人は、足りないパーツを待たずに読み込みを先に進めさせる" +
+                "(抜けられるよりはよい。その人の画面ではマップの一部が欠けることがある)");
+            LateJoinMapForcePassSeconds = Config.Bind("LateJoin", "MapForcePassSeconds", 25f,
+                "(ホスト)参加からこの秒数たっても「マップ受信」が終わらなければ、読み込みを先に進めさせる");
+            LateJoinReportMap = Config.Bind("LateJoin", "ReportMap", true,
+                "(参加者)自分の読み込みがマップの段階で止まったら、パーツの一覧をログに出し、ホストに報告する");
             ObserveEnabled = Config.Bind("Observe", "Enabled", true,
                 "入った部屋の様子をログ(LogOutput.log)に残す: ステージ名、チャット、トラックの画面の文字、部屋のカスタムプロパティ、" +
                 "この PC にない MOD の通信の回数。自分の PC のログに書くだけで、外には送らない(変更はゲーム再起動後に反映)");
@@ -71,6 +81,7 @@ namespace LoadProgress
             DontDestroyOnLoad(go);
             go.AddComponent<ProgressTracker>();
             go.AddComponent<LateJoinTracker>();
+            go.AddComponent<MapReport>();
             if (ObserveEnabled.Value)
             {
                 go.AddComponent<RoomObserver>();
