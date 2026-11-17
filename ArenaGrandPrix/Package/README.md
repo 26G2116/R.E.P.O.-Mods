@@ -51,6 +51,7 @@
 - バトルロワイヤルに入ると、ゲームの仕組みで**チームの買ったアイテムがリセット**されます(ふつうに全滅してアリーナに行ったときと同じ)。アップグレードは残ります。
 - 大会の間はショップに寄りません。大会が終わったあとのレベルの番号は、始めたときと同じです。
 - REPO_JP さんのアリーナレース用 MOD(ArenaRaceMultiplayerSpawnFix・ArenaRaceCosmeticBoxTrap・ArenaRaceSpeedBoost)と一緒に使えます。前の 2 つは今のゲームでは壊れているので、[ArenaRaceFixes](../../ArenaRaceFixes/Package/README.md) も入れてください。
+- [ArenaTweaks](../../ArenaTweaks/Package/README.md)(残機・レースのクラウン・アイテムの調整)と一緒に使えます。残機で復活した人は、最後に倒れた時刻で順位がつきます。
 
 ## 動作確認
 - [ ] `/rg` でレースへ移る
@@ -61,4 +62,5 @@
 - [ ] `/rg stop`・`/rg skip`
 
 ## 更新履歴
+- 0.1.1: ArenaTweaks の残機で復活した人は、最後に倒れた時刻で順位をつける。決勝で観戦になった人を ArenaTweaks が復活させないようにする
 - 0.1.0: 最初の版

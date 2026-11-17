@@ -10,6 +10,7 @@
 > - **AIMonsters** – an Azure OpenAI model directs Robe, Loom and Cleanup Crew once they spot a player; break a big monster orb while holding it to summon a chatty ally Robe.
 > - **LoadProgress** – shows every player's loading progress, tracks late joiners (the host re-sends map data when they get stuck), and can log what happens in rooms you join.
 > - **ArenaGrandPrix** – an Arena Race / Disposal Arena tournament: the host starts it with `/rg`, races and battles alternate with points shown in the truck, then the top scorers fight for the crown.
+> - **ArenaTweaks** – experimental arena tweaks: a stationary clown enemy on the race track, extra lives with countdown revives, and Disposal Arena item tuning.
 > - **ArenaRaceFixes** – fixes REPO_JP's ArenaRaceMultiplayerSpawnFix and ArenaRaceCosmeticBoxTrap after the November 2026 game update.
 >
 > Documentation is in Japanese. MIT licensed. Not on Thunderstore.
@@ -24,7 +25,8 @@
 | [**DroneTweaks**](DroneTweaks/Package/README.md) | 0.5.3 | 削除されたドローン・オーブを店に戻し、新しい効果をつける | ホストだけ |
 | [**AIMonsters**](AIMonsters/Package/README.md) | 0.9.0 | Azure OpenAI の AI にローブ・ルーム・クリーンアップクルーを動かさせる。話せる味方のローブを呼べる | ホストだけ |
 | [**LoadProgress**](LoadProgress/Package/README.md) | 0.4.1 | ロードと途中参加の読み込みの進み具合を表示する。止まった途中参加の人にマップを送り直す。入った部屋の様子をログに残す | 見たい人(送り直しはホスト) |
-| [**ArenaGrandPrix**](ArenaGrandPrix/Package/README.md) | 0.1.0 | レースとバトルロワイヤルを交互に遊ぶ大会。順位でポイントをつけ、最後に決勝 | ホストだけ |
+| [**ArenaGrandPrix**](ArenaGrandPrix/Package/README.md) | 0.1.1 | レースとバトルロワイヤルを交互に遊ぶ大会。順位でポイントをつけ、最後に決勝 | ホストだけ |
+| [**ArenaTweaks**](ArenaTweaks/Package/README.md) | 0.1.0 | 実験版: レースのコースにクラウンを置く・残機で復活・バトルロワイヤルのアイテムを調整 | ホストだけ |
 | [**ArenaRaceFixes**](ArenaRaceFixes/Package/README.md) | 0.1.0 | 11 月 5 日の更新で壊れた REPO_JP さんのアリーナレース用 MOD 2 つを直す | ホストだけ |
 | [Translation](Translation/README.md) | — | ほかの作者の MOD の英語を日本語にする翻訳表(XUnity.AutoTranslator 用) | 使いたい人 |
 
@@ -71,6 +73,11 @@ MOD の名前をクリックすると、それぞれの説明書を開けます�
 - ホストがチャットに `/rg` と打つと、アリーナレースへ移って大会が始まる
 - 試合(レース・バトルロワイヤルを交互に既定 5 回)ごとに順位でポイントをつけ、トラックのモニターに結果と総合順位を出す
 - 最後は、ポイントがいちばん多い人(同点なら全員)だけのバトルロワイヤルで王冠を取り合う(ほかの人は観戦)
+
+### ArenaTweaks(アリーナ調整・実験版)
+- レースのコースに置かれる貴重品の代わりに、クラウンを 1 体だけ置く(動かずにビームを撃つ。足場が崩れたら先のコースに置き直す)
+- 残機: 倒れてもカウントダウンのあと復活する(バトルロワイヤルは中央、レースはトップの人の少し後ろで新しいカートに乗って)
+- バトルロワイヤルに置かれるアイテムの数・確率と、中央に出る武器の間隔・種類を変える
 
 ### ArenaRaceFixes
 - ArenaRaceMultiplayerSpawnFix 4.0.2: 並べ直しの通信を今のゲームの形で送る
@@ -126,6 +133,7 @@ dotnet build -c Release -p:UseCachedPublicized=true
 | `AIMonsters/` | Azure OpenAI の AI に敵を動かさせる MOD(仕様: [Docs/ai_monsters.md](Docs/ai_monsters.md)) |
 | `LoadProgress/` | ロードと途中参加の進み具合を表示する MOD(仕組み: [Docs/loading_flow.md](Docs/loading_flow.md)) |
 | `ArenaGrandPrix/` | アリーナ大会の MOD |
+| `ArenaTweaks/` | アリーナ調整(実験版)の MOD |
 | `ArenaRaceFixes/` | REPO_JP さんのアリーナレース用 MOD の修正 |
 | `RepoModTemplate/` | 新しい MOD を作るときのひな形(起動ログ・設定・Harmony パッチのサンプル) |
 | `Translation/` | 日本語化の翻訳表 |

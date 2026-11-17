@@ -576,3 +576,13 @@ namespace ArenaGrandPrix
         }
     }
 }
+
+namespace ArenaGrandPrix
+{
+    /// <summary>ほかの MOD(ArenaTweaks)から使う窓口。</summary>
+    public static class Api
+    {
+        /// <summary>決勝で観戦になった人か(その人を復活させないため)。</summary>
+        public static bool IsSpectator(PlayerAvatar player) => ArenaTracker.IsSpectator(player);
+    }
+}

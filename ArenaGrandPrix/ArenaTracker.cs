@@ -30,6 +30,7 @@ namespace ArenaGrandPrix
         private static Object sceneKey;
         private static readonly Dictionary<string, Participant> Participants = new Dictionary<string, Participant>();
         private static readonly List<PlayerAvatar> Spectators = new List<PlayerAvatar>();
+        private static readonly HashSet<string> SpectatorIds = new HashSet<string>();
         private static float killAt;
         private static int killTries;
 
@@ -38,6 +39,14 @@ namespace ArenaGrandPrix
             sceneKey = null;
             Participants.Clear();
             Spectators.Clear();
+            SpectatorIds.Clear();
+        }
+
+        /// <summary>今の試合(決勝)で観戦になった人か(ArenaTweaks の残機で復活させないため)。</summary>
+        internal static bool IsSpectator(PlayerAvatar player)
+        {
+            string id = Tournament.IdOf(player);
+            return id != null && SpectatorIds.Contains(id) && SemiFunc.RunIsArena();
         }
 
         /// <summary>Runner から毎フレーム。</summary>
@@ -68,6 +77,12 @@ namespace ArenaGrandPrix
                     p.DeathTime = now;
                     Plugin.Log.LogInfo($"{p.Name} が倒れました");
                 }
+                else if (p.DeathTime >= 0f && p.Avatar && !p.Avatar.isDisabled && !p.Avatar.deadSet)
+                {
+                    // 復活した(ArenaTweaks の残機など)。最後に倒れた時刻で順位をつける
+                    p.DeathTime = -1f;
+                    Plugin.Log.LogInfo($"{p.Name} が復活しました");
+                }
             }
             if (Spectators.Count > 0 && now >= killAt)
             {
@@ -80,6 +95,7 @@ namespace ArenaGrandPrix
             sceneKey = key;
             Participants.Clear();
             Spectators.Clear();
+            SpectatorIds.Clear();
             Tournament.Stage stage = Tournament.Running.Value;
             var finalists = new HashSet<string>(Tournament.Finalists);
             List<PlayerAvatar> players = SemiFunc.PlayerGetAll();
@@ -98,6 +114,7 @@ namespace ArenaGrandPrix
                 if (stage == Tournament.Stage.Final && anyFinalist && !finalists.Contains(id))
                 {
                     Spectators.Add(player);
+                    SpectatorIds.Add(id);
                     continue;
                 }
                 Participants[id] = new Participant { Avatar = player, SteamID = id, Name = SemiFunc.PlayerGetName(player) ?? id };
