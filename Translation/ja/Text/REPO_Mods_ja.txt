@@ -1,5 +1,5 @@
 // XUnity.AutoTranslator 用の翻訳表(英語=日本語)
-// 「Repo MODs」プロファイルに入っている MOD のうち、画面に出る英語を訳したもの。
+// 「Repo MODs」「レース等」プロファイルに入っている MOD のうち、画面に出る英語(と一部の中国語)を訳したもの。
 // - 1 行に 1 件。左が画面に出る英語(完全一致)、右が日本語
 // - r:"正規表現"=置き換え  は、数字や名前が入る文に使う($1 などで中身を残す。$ そのものは $$)
 // - 設定画面(REPOConfig)の項目名は、大文字の区切りにスペースを入れた形で出るので、その形で書く
@@ -356,6 +356,95 @@ R.A.M. - Credits=R.A.M. - クレジット
 Repo Admin Menu by=Repo Admin Menu 作者
 Special thanks to:=協力:
 R.A.M. - Confirm=R.A.M. - 確認
+
+// --- 1.0.17 で増えた分 ---
+Max Spawn Count=一度に出せる数の上限
+Spawner Count=出す数
+Teleport=テレポート
+r:"^R\.A\.M\. - (.+) - Teleport Menu$"=R.A.M. - $1 - テレポート
+r:"^Go to (.+)$"=$1 の所へ行く
+r:"^Send to (.+)$"=$1 の所へ送る
+Freeze Enemy AI=敵の動きを止める
+Disable Shopkeeper=店主を出さない
+Cosmetic Boxes=コスメボックス
+R.A.M. - Spawn - Cosmetic Boxes=R.A.M. - 出現 - コスメボックス
+Common=コモン
+Uncommon=アンコモン
+Rare=レア
+UltraRare=ウルトラレア
+Cosmetic boxes are not available in this level.=このレベルではコスメボックスを出せません。
+r:"^No cosmetic box exists for rarity '(.+)'\.$"=レア度「$1」のコスメボックスはありません。
+r:"^Spawned (\d+) (.+) cosmetic box\(es\)\.$"=$2 のコスメボックスを $1 個出しました。
+r:"^Already spawning enemy '(.+)'!$"=敵「$1」はもう出しているところです!
+r:"^Could not find enemy named '(.+)'$"=敵「$1」が見つかりません
+r:"^Spawning (\d+) '(.+)'\. Run\.\.\.!$"=「$2」を $1 体出します。逃げて…!
+r:"^Spawned (\d+) '(.+)'\.$"=「$2」を $1 個出しました。
+r:"^Could not spawn valuable '(.+)'$"=貴重品「$1」を出せませんでした
+
+//==================== ArenaRaceCosmeticBoxTrap(アリーナレースのコスメボックスの罠) ====================
+// 大きさの決め方(Size Range Mode)の値 Wide / CompactRarity は訳さない(「Wide」は RepoAdminMenu の「横長」と重なるため)
+Spawn Chance=出現率
+Overall Spawn Chance=全体の出現率
+Small Volume Spawn Chance=小さい置き場所での出現率
+Large Volume Spawn Chance=大きい置き場所での出現率
+Rarity Weight=レア度の重み
+Common Weight=コモンの重み
+Uncommon Weight=アンコモンの重み
+Rare Weight=レアの重み
+Ultra Rare Weight=ウルトラレアの重み
+Size=大きさ
+Size Range Mode=大きさの決め方
+Size Wide=大きさ(Wide)
+Common Min Scale=コモンの最小倍率
+Common Max Scale=コモンの最大倍率
+Uncommon Min Scale=アンコモンの最小倍率
+Uncommon Max Scale=アンコモンの最大倍率
+Rare Min Scale=レアの最小倍率
+Rare Max Scale=レアの最大倍率
+Ultra Rare Min Scale=ウルトラレアの最小倍率
+Ultra Rare Max Scale=ウルトラレアの最大倍率
+Size CompactRarity=大きさ(CompactRarity)
+Common Min Scale Compact=コモンの最小倍率(Compact)
+Common Max Scale Compact=コモンの最大倍率(Compact)
+Uncommon Min Scale Compact=アンコモンの最小倍率(Compact)
+Uncommon Max Scale Compact=アンコモンの最大倍率(Compact)
+Rare Min Scale Compact=レアの最小倍率(Compact)
+Rare Max Scale Compact=レアの最大倍率(Compact)
+Ultra Rare Min Scale Compact=ウルトラレアの最小倍率(Compact)
+Ultra Rare Max Scale Compact=ウルトラレアの最大倍率(Compact)
+Spawn Transform=置き方
+Position Jitter=位置のばらつき
+Random Yaw=向きをランダムにする
+Random Tilt=傾きをランダムにする
+Random Tilt Degrees=ランダムに傾ける角度
+Explosion=爆発
+Trigger Players=プレイヤーが触れたら爆発
+Trigger Vehicles=カートが触れたら爆発
+Touch Radius=触れたとみなす距離
+Spawn Grace Seconds=出てから爆発しない秒数
+Advanced=詳細
+Register To Track Piece Cleanup=コースが落ちたら一緒に消す
+Debug Log=デバッグログ
+
+//==================== ArenaRaceSpeedBoost(アリーナレースのカートの速さ) ====================
+Multipliers=倍率
+Driving Performance Multiplier=走りの性能の倍率
+Drift Multiplier=ドリフトの倍率
+Boost Pad Multiplier=ブーストパッドの倍率
+Boost Pad Correction Multiplier=ブーストパッドの向き補正の倍率
+Light Effect Multiplier=光の演出の倍率
+Smoke Effect Multiplier=煙の演出の倍率
+
+//==================== MoreUIPanel(左下の情報パネル) ====================
+// 設定の名前と画面の文が中国語
+常规=全般
+启用面板=パネルを表示する
+字号=文字の大きさ
+透明度百分比=不透明度(%)
+刷新间隔秒=更新の間隔(秒)
+拖动模式快捷键=移動モードのキー
+拖动模式：拖空白移动整体 / 拖某行只移动该行=移動モード: 空いている所をドラッグで全体を移動 / 行をドラッグでその行だけ移動
+r:"^按 (.+) 保存并退出$"=$1 で保存して終了
 
 //==================== AdminMenu(DarkSpider、今は無効) ====================
 // メニューの中は MOD 自身が日本語に対応しているので、設定画面の項目だけ訳す
