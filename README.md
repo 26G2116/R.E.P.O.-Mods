@@ -11,7 +11,7 @@
 > - **LoadProgress** – shows every player's loading progress, tracks late joiners (the host re-sends map data when they get stuck), and can log what happens in rooms you join.
 > - **ArenaGrandPrix** – an Arena Race / Disposal Arena tournament: the host starts it with `/rg`, races and battles alternate with points shown in the truck, then the top scorers fight for the crown.
 > - **ArenaTweaks** – experimental arena tweaks: a stationary clown enemy on the race track, extra lives with countdown revives, and Disposal Arena item tuning.
-> - **ArenaRaceFixes** – fixes REPO_JP's ArenaRaceMultiplayerSpawnFix and ArenaRaceCosmeticBoxTrap after the November 2026 game update.
+> - **ArenaRaceFixes** – fixes REPO_JP's ArenaRaceMultiplayerSpawnFix and ArenaRaceCosmeticBoxTrap after the November 2026 game update, and lines racers up on the track below the start box so large lobbies can start.
 >
 > Documentation is in Japanese. MIT licensed. Not on Thunderstore.
 
@@ -27,7 +27,7 @@
 | [**LoadProgress**](LoadProgress/Package/README.md) | 0.4.1 | ロードと途中参加の読み込みの進み具合を表示する。止まった途中参加の人にマップを送り直す。入った部屋の様子をログに残す | 見たい人(送り直しはホスト) |
 | [**ArenaGrandPrix**](ArenaGrandPrix/Package/README.md) | 0.1.2 | レースとバトルロワイヤルを交互に遊ぶ大会。順位でポイントをつけ、最後に決勝 | ホストだけ |
 | [**ArenaTweaks**](ArenaTweaks/Package/README.md) | 0.1.1 | 実験版: レースのコースにクラウンを置く・残機で復活・バトルロワイヤルのアイテムを調整 | ホストだけ |
-| [**ArenaRaceFixes**](ArenaRaceFixes/Package/README.md) | 0.3.0 | 11 月 5 日の更新で壊れた REPO_JP さんのアリーナレース用 MOD 2 つを直す | ホストだけ |
+| [**ArenaRaceFixes**](ArenaRaceFixes/Package/README.md) | 0.3.0 | 11 月 5 日の更新で壊れた REPO_JP さんのアリーナレース用 MOD 2 つを直す。レースのスタートを箱の下のコースの上に並べる | ホストだけ |
 | [Translation](Translation/README.md) | — | ほかの作者の MOD の英語を日本語にする翻訳表(XUnity.AutoTranslator 用) | 使いたい人 |
 
 MOD の名前をクリックすると、それぞれの説明書を開けます。
@@ -40,7 +40,7 @@ MOD の名前をクリックすると、それぞれの説明書を開けます�
   - 戦闘「避雷針」: 武器を掲げてチャージすると、次の攻撃が 2 回当たる
   - 特殊「ギャンブラー」: チャットの `/r` のダイスで、回復・お金・自爆が起きる
 - 役職を選ばなかったときは、前の役職を引き継ぐ
-- トラックのモニターに、報酬の一覧と役職特性の説明をページで出す(チャットの `/s` で切り替え)
+- トラックのモニターに、報酬の一覧と役職特性の説明をページで出す(画面の上から書く。チャットの `/s` で切り替え)
 - ショップでは、チームのお金を人数分の金袋に分け、各自の所持金で買い物をする。同じ商品を取り合うと決闘になる
 
 ### MonsterTweaks
@@ -73,14 +73,16 @@ MOD の名前をクリックすると、それぞれの説明書を開けます�
 - ホストがチャットに `/rg` と打つと、アリーナレースへ移って大会が始まる
 - 試合(レース・バトルロワイヤルを交互に既定 5 回)ごとに順位でポイントをつけ、トラックのモニターに結果と総合順位を出す
 - 最後は、ポイントがいちばん多い人(同点なら全員)だけのバトルロワイヤルで王冠を取り合う(ほかの人は観戦)
+- 試合の移動・順位・モニターはゲーム本来の通信で全員に届くので、参加者は MOD なしで遊べる
 
 ### ArenaTweaks(アリーナ調整・実験版)
 - レースのコースに置かれる貴重品の代わりに、クラウンを 1 体だけ置く(動かずにビームを撃つ。足場が崩れたら先のコースに置き直す)
 - 残機: 倒れてもカウントダウンのあと復活する(バトルロワイヤルは中央、レースはトップの人の少し後ろで新しいカートに乗って)
 - バトルロワイヤルに置かれるアイテムの数・確率と、中央に出る武器の間隔・種類を変える
+- 一人で試すための設定(一人でもバトルロワイヤルの床を残す)がある
 
 ### ArenaRaceFixes
-- ArenaRaceMultiplayerSpawnFix 4.0.2: 並べ直しの通信を今のゲームの形で送る
+- ArenaRaceMultiplayerSpawnFix 4.0.2: 並べ直しの通信を今のゲームの形で送る。スタートの箱は大人数が入らないので、箱の下のコースの上に、元の MOD の横の人数ずつ並べる
 - ArenaRaceCosmeticBoxTrap 4.0.0: コスメボックスに触れたら爆発するようにする
 
 ## 一緒に使う MOD
@@ -88,6 +90,8 @@ MOD の名前をクリックすると、それぞれの説明書を開けます�
 |---|---|
 | [REPOConfig](https://thunderstore.io/c/repo/p/REPOModding/REPOConfig/) | ゲーム中に設定を変えられる(MonsterTweaks はすぐ反映) |
 | LateJoinNow などの途中参加 MOD | AIMonsters は、途中参加の人の読み込み中は味方のローブを隠す(読み込みが終わらない問題の対策)。LoadProgress は読み込みの進み具合を表示し、止まったらマップを送り直す |
+| ArenaGrandPrix + ArenaTweaks | 残機で復活した人は、最後に倒れた時刻で順位がつく。決勝で観戦になった人は復活しない |
+| ArenaGrandPrix / ArenaTweaks + REPO_JP さんのアリーナレース用 MOD | ArenaRaceMultiplayerSpawnFix と ArenaRaceCosmeticBoxTrap は今のゲームでは壊れているので、ArenaRaceFixes も入れる。ArenaRaceSpeedBoost はそのまま使える |
 | MonsterTweaks + AIMonsters | AI が動かしている敵は、MonsterTweaks の行動の強化を止める(速さ・視界の強化はそのまま)。ヒドゥンは味方のローブの所へは運ばない |
 
 ## 導入方法(遊ぶ人向け)
