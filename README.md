@@ -27,7 +27,7 @@
 | [**LoadProgress**](LoadProgress/Package/README.md) | 0.4.1 | ロードと途中参加の読み込みの進み具合を表示する。止まった途中参加の人にマップを送り直す。入った部屋の様子をログに残す | 見たい人(送り直しはホスト) |
 | [**ArenaGrandPrix**](ArenaGrandPrix/Package/README.md) | 0.1.2 | レースとバトルロワイヤルを交互に遊ぶ大会。順位でポイントをつけ、最後に決勝 | ホストだけ |
 | [**ArenaTweaks**](ArenaTweaks/Package/README.md) | 0.1.1 | 実験版: レースのコースにクラウンを置く・残機で復活・バトルロワイヤルのアイテムを調整 | ホストだけ |
-| [**ArenaRaceFixes**](ArenaRaceFixes/Package/README.md) | 0.2.0 | 11 月 5 日の更新で壊れた REPO_JP さんのアリーナレース用 MOD 2 つを直す | ホストだけ |
+| [**ArenaRaceFixes**](ArenaRaceFixes/Package/README.md) | 0.3.0 | 11 月 5 日の更新で壊れた REPO_JP さんのアリーナレース用 MOD 2 つを直す | ホストだけ |
 | [Translation](Translation/README.md) | — | ほかの作者の MOD の英語を日本語にする翻訳表(XUnity.AutoTranslator 用) | 使いたい人 |
 
 MOD の名前をクリックすると、それぞれの説明書を開けます。
