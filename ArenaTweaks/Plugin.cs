@@ -19,7 +19,7 @@ namespace ArenaTweaks
     {
         public const string PluginGuid = "shunm.ArenaTweaks";
         public const string PluginName = "ArenaTweaks";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.1.1";
 
         internal static ManualLogSource Log;
         internal static Runner Runner;
@@ -51,6 +51,9 @@ namespace ArenaTweaks
         internal static ConfigEntry<float> MidInterval;
         internal static ConfigEntry<int> MidStartLevel;
         internal static ConfigEntry<MidKind> MidItems;
+
+        // テスト
+        internal static ConfigEntry<bool> SoloArena;
 
         private void Awake()
         {
@@ -98,6 +101,10 @@ namespace ArenaTweaks
                 new ConfigDescription("床が何段階目になってから中央に武器を出すか(ゲームは 2 = 最初の床が落ちたあと)", new AcceptableValueRange<int>(0, 4)));
             MidItems = Config.Bind(items, "中央に出す種類", MidKind.MeleeAndGuns,
                 "MeleeAndGuns = 近接武器と銃(ゲームと同じ)、Melee = 近接武器、Guns = 銃、Everything = 上の 6 種類すべて");
+
+            SoloArena = Config.Bind("テスト", "一人でバトルロワイヤルを試す", false,
+                "ON: 一人(シングルプレイ)でも、バトルロワイヤルを複数人のときと同じように動かす(床が残る・アイテムが置かれる・残機を試せる)。" +
+                "ゲームは一人だとすぐ床を落として終わりにするため。テスト用");
 
             try
             {

@@ -24,6 +24,9 @@ namespace ArenaTweaks
         private static float freeSince = -999f;
         private static float placedAt;
         private static bool unavailable;
+        private static bool lastSpawned;
+        private static EnemyBeamer.State? lastBeamerState;
+        private static int stateLogs;
 
         private static void EnsureScene(ArenaRace race)
         {
@@ -32,6 +35,9 @@ namespace ArenaTweaks
                 return;
             }
             sceneKey = race;
+            lastSpawned = false;
+            lastBeamerState = null;
+            stateLogs = 0;
             clown = null;
             clownPiece = null;
             wantedPosition = null;
@@ -48,6 +54,7 @@ namespace ArenaTweaks
                 return;
             }
             EnsureScene(race);
+            LogState();
             if (!clown || wantedPosition == null)
             {
                 return;
@@ -69,6 +76,40 @@ namespace ArenaTweaks
             if (clown.Spawned)
             {
                 clown.SpawnedTimer = Mathf.Max(clown.SpawnedTimer, 60f); // 時間で勝手に消えないように
+            }
+        }
+
+        /// <summary>ログ: クラウンが出た・隠れた、と、動き(ビームの構え・撃つなど)が変わったとき。</summary>
+        private static void LogState()
+        {
+            if (!clown)
+            {
+                return;
+            }
+            bool spawned = clown.Spawned;
+            if (spawned != lastSpawned)
+            {
+                lastSpawned = spawned;
+                if (spawned && clown.Enemy)
+                {
+                    Vector3 pos = clown.Enemy.transform.position;
+                    float nearest = SemiFunc.PlayerGetAll().Where(p => p && !p.isDisabled)
+                        .Select(p => Vector3.Distance(p.transform.position, pos)).DefaultIfEmpty(-1f).Min();
+                    Plugin.Log.LogInfo($"クラウンが出てきました(位置 {pos}、いちばん近い人まで {nearest:F0} m)");
+                }
+                else
+                {
+                    Plugin.Log.LogInfo("クラウンが隠れました");
+                }
+            }
+            EnemyBeamer beamer = clown.GetComponentInChildren<EnemyBeamer>(true);
+            if (beamer && beamer.currentState != lastBeamerState)
+            {
+                lastBeamerState = beamer.currentState;
+                if (stateLogs++ < 60)
+                {
+                    Plugin.Log.LogInfo($"クラウンの動き: {beamer.currentState}");
+                }
             }
         }
 

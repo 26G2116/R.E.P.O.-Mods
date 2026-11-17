@@ -11,6 +11,9 @@ namespace ArenaRaceFixes
     /// 11 月 5 日の更新で、プレイヤーの位置を決める通信 SpawnRPC の受け取り側に「デバッグ用のスポーンか」(bool)が増えた。
     /// 元の MOD は古い形(位置・向きの 2 つ)で送るので、全員の PC で「引数が違う」エラーになり、並べ直しが効かない。
     /// 元の MOD の送る処理(TryApplySpawnPositionByRpc)を、今の形(位置・向き・false)で送る処理に差し替える。
+    ///
+    /// ただし元の MOD の並べ方(ゲームの開始位置から 5 m 上・10 m 後ろ)は更新前のゲーム用で、今のゲームではスタートの部屋の外になる。
+    /// そのため既定では動かさない(ゲームの開始位置のまま)。設定で「重なった人だけずらす」「元の並べ方」も選べる。
     /// </summary>
     internal static class SpawnFix
     {
@@ -19,6 +22,8 @@ namespace ArenaRaceFixes
 
         private static MethodInfo spawnRpc;
         private static int applied;
+        private static int spreadFrame = -1;
+        private static readonly System.Collections.Generic.List<Vector3> Taken = new System.Collections.Generic.List<Vector3>();
 
         internal static bool Patch(Harmony harmony)
         {
@@ -54,6 +59,24 @@ namespace ArenaRaceFixes
             {
                 return false;
             }
+            switch (Plugin.Layout.Value)
+            {
+                case SpawnLayout.Game:
+                    __result = true; // 動かさない(ゲームの開始位置のまま)
+                    if (applied++ < 200)
+                    {
+                        Plugin.Log.LogInfo($"並べ直し: {SemiFunc.PlayerGetName(player)} はゲームの開始位置のままにします");
+                    }
+                    return false;
+                case SpawnLayout.Spread:
+                    if (!SpreadPosition(player, out position))
+                    {
+                        __result = true; // 重なっていない
+                        return false;
+                    }
+                    rotation = player.transform.rotation;
+                    break;
+            }
             try
             {
                 if (!SemiFunc.IsMultiplayer())
@@ -84,6 +107,36 @@ namespace ArenaRaceFixes
                 Plugin.Log.LogError($"並べ直し: {index} 番目のプレイヤーを置けませんでした: {e}");
             }
             return false; // 元の(古い形で送る)処理は動かさない
+        }
+
+        /// <summary>
+        /// ゲームの開始位置で、先に置いた人と重なっていたら、コースの横向きにずらす(右・左・右 2 つ分…の順)。
+        /// 元の MOD は全員を同じフレームで置くので、フレームが変わったら置いた位置を忘れる。
+        /// </summary>
+        private static bool SpreadPosition(PlayerAvatar player, out Vector3 position)
+        {
+            if (spreadFrame != Time.frameCount)
+            {
+                spreadFrame = Time.frameCount;
+                Taken.Clear();
+            }
+            Vector3 start = player.transform.position;
+            Vector3 forward = ArenaRace.instance && ArenaRace.instance.trackSpawnOrigin ? ArenaRace.instance.trackSpawnOrigin.forward : Vector3.forward;
+            forward.y = 0f;
+            Vector3 right = Vector3.Cross(Vector3.up, forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward).normalized;
+            position = start;
+            for (int k = 0; k < 20; k++)
+            {
+                float offset = k == 0 ? 0f : (k % 2 == 1 ? 1f : -1f) * 0.9f * ((k + 1) / 2);
+                Vector3 candidate = start + right * offset;
+                if (!Taken.Exists(t => Vector3.Distance(t, candidate) < 0.7f))
+                {
+                    position = candidate;
+                    break;
+                }
+            }
+            Taken.Add(position);
+            return position != start;
         }
     }
 }

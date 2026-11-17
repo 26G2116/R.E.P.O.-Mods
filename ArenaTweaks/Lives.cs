@@ -180,6 +180,7 @@ namespace ArenaTweaks
                 All.Clear();
                 arenaCenter = null;
                 arenaSpotLogged = false;
+                missLogs = 0;
             }
             return true;
         }
@@ -511,7 +512,7 @@ namespace ArenaTweaks
                 foreach (float scale in new[] { 1f, 0.6f, 1.5f, 0.3f })
                 {
                     Vector3 origin = vehicle.rb.position - forward * (behind * scale) + Vector3.up * 4f;
-                    if (FindTrack(origin, out Vector3 point, out ArenaRaceTrackPiece piece) && PieceSafe(piece, 2f))
+                    if (FindTrack(race, origin, out Vector3 point, out ArenaRaceTrackPiece piece) && PieceSafe(piece, 2f))
                     {
                         spot = new Spot { Position = point, Rotation = Quaternion.LookRotation(forward), PieceIndex = piece.pieceIndex };
                         return true;
@@ -522,7 +523,7 @@ namespace ArenaTweaks
             {
                 return false; // 走っている人はいる。床に着くまで待つ
             }
-            // 走っている人がいない: まだ崩れ始めていない、いちばん手前のコース
+            // 走っている人がいない: まだ崩れ始めていない、いちばん手前のコースの、入口から少し進んだところ
             ArenaRaceTrackPiece first = race.spawnedTrackPieces
                 .Where(x => x && !x.countdownStarted && !x.plunging)
                 .OrderBy(x => x.pieceIndex)
@@ -533,10 +534,24 @@ namespace ArenaTweaks
             }
             Bounds b = first.CalculateBounds();
             Vector3 fwd = race.cachedPieceEndForwards.TryGetValue(first.pieceIndex, out Vector3 f) ? Flat(f) : Flat(first.transform.forward);
-            if (FindTrack(b.center + Vector3.up * (b.extents.y + 4f), out Vector3 p2, out ArenaRaceTrackPiece piece2))
+            var candidates = new List<Vector3>();
+            if (race.cachedPieceEndPositions.TryGetValue(first.pieceIndex - 1, out Vector3 entrance))
             {
-                spot = new Spot { Position = p2, Rotation = Quaternion.LookRotation(fwd), PieceIndex = piece2.pieceIndex };
-                return true;
+                foreach (float d in new[] { 4f, 7f, 10f, 2f, 13f })
+                {
+                    candidates.Add(entrance + fwd * d);
+                }
+            }
+            candidates.Add(b.center);
+            candidates.Add(first.transform.position + fwd * 4f);
+            float top = b.max.y + 4f;
+            foreach (Vector3 c in candidates)
+            {
+                if (FindTrack(race, new Vector3(c.x, Mathf.Max(top, c.y + 4f), c.z), out Vector3 p2, out ArenaRaceTrackPiece piece2, b.size.y + 20f) && PieceSafe(piece2, 2f))
+                {
+                    spot = new Spot { Position = p2, Rotation = Quaternion.LookRotation(fwd), PieceIndex = piece2.pieceIndex };
+                    return true;
+                }
             }
             return false;
         }
@@ -559,24 +574,72 @@ namespace ArenaTweaks
         private static bool PieceSafe(ArenaRaceTrackPiece piece, float minSeconds) =>
             piece && !piece.plunging && (!piece.countdownStarted || piece.countdownTimer >= minSeconds);
 
-        /// <summary>真下にあるコースの床(物やプレイヤーは飛ばす。ほかの物に当たったら失敗)。</summary>
-        private static bool FindTrack(Vector3 origin, out Vector3 point, out ArenaRaceTrackPiece piece)
+        private static int missLogs;
+
+        /// <summary>
+        /// 真下にあるコースの床(物やプレイヤーは飛ばす。ほかの物に当たったら失敗)。
+        /// 床の当たり判定がコースの部品の子でないこともあるので、当たった点がコースの部品の範囲にあれば、その部品の床とみなす。
+        /// </summary>
+        private static bool FindTrack(ArenaRace race, Vector3 origin, out Vector3 point, out ArenaRaceTrackPiece piece, float distance = 14f)
         {
             point = default;
             piece = null;
-            foreach (RaycastHit hit in Physics.RaycastAll(origin, Vector3.down, 14f, ~0, QueryTriggerInteraction.Ignore).OrderBy(h => h.distance))
+            foreach (RaycastHit hit in Physics.RaycastAll(origin, Vector3.down, distance, ~0, QueryTriggerInteraction.Ignore).OrderBy(h => h.distance))
             {
                 if (IsMovable(hit.collider))
                 {
                     continue;
                 }
+                if (hit.normal.y < 0.7f)
+                {
+                    // 壁や障害物の横に当たった(床は、ほぼ水平な面だけ)
+                    if (missLogs++ < 10)
+                    {
+                        Plugin.Log.LogInfo($"復活する場所を探しています: {hit.collider.name} は床ではありません(傾きすぎ)");
+                    }
+                    return false;
+                }
                 piece = hit.collider.GetComponentInParent<ArenaRaceTrackPiece>();
+                if (!piece && hit.collider.attachedRigidbody && !hit.collider.attachedRigidbody.isKinematic)
+                {
+                    // 動く物(コースの部品の外のもの)は床にしない
+                    if (missLogs++ < 10)
+                    {
+                        Plugin.Log.LogInfo($"復活する場所を探しています: {hit.collider.name} は動く物なので床にしません");
+                    }
+                    return false;
+                }
                 if (!piece)
                 {
+                    foreach (ArenaRaceTrackPiece p in race.spawnedTrackPieces)
+                    {
+                        if (!p)
+                        {
+                            continue;
+                        }
+                        Bounds b = p.CalculateBounds();
+                        b.Expand(1f);
+                        if (b.Contains(hit.point))
+                        {
+                            piece = p;
+                            break;
+                        }
+                    }
+                }
+                if (!piece)
+                {
+                    if (missLogs++ < 10)
+                    {
+                        Plugin.Log.LogInfo($"復活する場所を探しています: {hit.collider.name}(レイヤー {LayerMask.LayerToName(hit.collider.gameObject.layer)})はコースの床ではありません");
+                    }
                     return false;
                 }
                 point = hit.point;
                 return true;
+            }
+            if (missLogs++ < 10)
+            {
+                Plugin.Log.LogInfo($"復活する場所を探しています: {origin} の下に床がありません");
             }
             return false;
         }

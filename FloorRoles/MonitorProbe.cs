@@ -168,6 +168,56 @@ namespace FloorRoles
             return Mathf.Abs(pitch - expected) <= expected * 0.5f;
         }
 
+        /// <summary>
+        /// 文章を枠の上端へ寄せるための、最後に足す見えない 1 行(モニターは下端そろえで、ほかの人の PC の設定は変えられないため、
+        /// 文章の下に高さのある見えない行を置いて押し上げる)。finalText は、押し出し用の行が消えたあとの最終的な文章。
+        /// 下には、あとから来るゲームのメッセージ用に spareLines 行分のすき間を残す。測れなければ空文字(下端のまま)。
+        /// </summary>
+        internal string TopPadding(string finalText, int size, int lineHeight, int spareLines)
+        {
+            if (usableHeight <= 0f)
+            {
+                return "";
+            }
+            float pitch = Pitch(size, ScaledLineHeight(lineHeight, size));
+            float spare = pitch > 0f ? pitch * Mathf.Max(0, spareLines) : 0f;
+            float limit = usableHeight * 0.97f - spare; // ぎりぎりだと見切れ扱いになるので、少し余らせる
+            int lo = 0;
+            int hi = 20000;
+            if (Height(finalText + Pad(lo)) > limit)
+            {
+                return "";
+            }
+            while (hi - lo > 5)
+            {
+                int mid = (lo + hi) / 2;
+                if (Height(finalText + Pad(mid)) <= limit)
+                {
+                    lo = mid;
+                }
+                else
+                {
+                    hi = mid;
+                }
+            }
+            return lo > 0 ? Pad(lo) : "";
+        }
+
+        private static string Pad(int lineHeight) =>
+            $"<line-height={lineHeight}%>\n<size=1%><color=#00000000>.</color></size></line-height>";
+
+        /// <summary>文章の 1 行目の上から最後の行の下までの高さ。測れなければ 0。</summary>
+        private float Height(string text)
+        {
+            int count = CountLines(text);
+            if (count <= 0)
+            {
+                return 0f;
+            }
+            var lines = probe.textInfo.lineInfo;
+            return lines[0].ascender - lines[count - 1].descender;
+        }
+
         /// <summary>ログ用の説明。</summary>
         internal string Describe(int size, int lineHeight)
         {

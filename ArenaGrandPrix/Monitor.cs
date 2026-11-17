@@ -189,6 +189,7 @@ namespace ArenaGrandPrix
             int size = CurrentMaxSize();
             int contentLines = lines.Count;
             string diagnosis = "測定できませんでした";
+            string padding = "";
             using (var probe = MonitorProbe.Create())
             {
                 if (probe != null)
@@ -204,12 +205,20 @@ namespace ArenaGrandPrix
                             break;
                         }
                     }
+                    // モニターは下端そろえなので、文章の下に見えない行を足して上端へ寄せる
+                    // (書き終わると、押し出し用の行は「12 - 文章の行 - この 1 行」だけ残る)
+                    int keep = Mathf.Max(0, 12 - contentLines - 1);
+                    string finalText = keep > 0 ? Flush(keep, size) + "\n" + Format(lines, size) : Format(lines, size);
+                    padding = probe.TopPadding(finalText, size, Plugin.MonitorLineHeight.Value, SpareLines);
                 }
             }
             lastSize = size;
-            Plugin.Log.LogInfo($"モニター: 文字 {size}%、{contentLines} 行({diagnosis})");
-            return Flush(12, size) + "\n" + Format(lines, size);
+            Plugin.Log.LogInfo($"モニター: 文字 {size}%、{contentLines} 行、{(padding.Length > 0 ? "上端寄せ" : "下端のまま")}({diagnosis})");
+            return Flush(12, size) + "\n" + Format(lines, size) + padding;
         }
+
+        /// <summary>あとから来るゲームのメッセージ(トラックに戻った人の回復など)のために、下に空けておく行。</summary>
+        private const int SpareLines = 2;
 
         /// <summary>見えない、とても薄い行(古い文章を押し出す用)。最後の 1 行だけは、ふつうの行の間隔にする。</summary>
         private static string Flush(int count, int size)

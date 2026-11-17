@@ -18,7 +18,7 @@ namespace ArenaGrandPrix
     {
         public const string PluginGuid = "shunm.ArenaGrandPrix";
         public const string PluginName = "ArenaGrandPrix";
-        public const string PluginVersion = "0.1.1";
+        public const string PluginVersion = "0.1.2";
 
         internal static ManualLogSource Log;
 

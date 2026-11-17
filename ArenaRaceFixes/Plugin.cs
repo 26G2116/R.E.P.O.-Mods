@@ -19,17 +19,21 @@ namespace ArenaRaceFixes
     {
         public const string PluginGuid = "shunm.ArenaRaceFixes";
         public const string PluginName = "ArenaRaceFixes";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.2.0";
 
         internal static ManualLogSource Log;
         internal static ConfigEntry<bool> FixSpawnFix;
         internal static ConfigEntry<bool> FixCosmeticBoxTrap;
+        internal static ConfigEntry<SpawnLayout> Layout;
 
         private void Awake()
         {
             Log = Logger;
             FixSpawnFix = Config.Bind("修正", "ArenaRaceMultiplayerSpawnFix を直す", true,
                 "ArenaRaceMultiplayerSpawnFix の並べ直しを、今のゲームの通信の形で送る(変更はゲームの再起動後)");
+            Layout = Config.Bind("修正", "レースの開始位置", SpawnLayout.Game,
+                "ArenaRaceMultiplayerSpawnFix の並べ直しをどうするか。Game = ゲームの開始位置のまま(おすすめ)、" +
+                "Spread = ゲームの開始位置で、重なった人だけ横にずらす、Original = 元の MOD の並べ方(今のゲームでは、スタートの部屋の外になる)");
             FixCosmeticBoxTrap = Config.Bind("修正", "ArenaRaceCosmeticBoxTrap を直す", true,
                 "ArenaRaceCosmeticBoxTrap のコスメボックスが、触れたときに爆発するようにする(変更はゲームの再起動後)");
 
@@ -59,5 +63,12 @@ namespace ArenaRaceFixes
                 Log.LogError($"{name} を直せませんでした: {e}");
             }
         }
+    }
+
+    internal enum SpawnLayout
+    {
+        Game,
+        Spread,
+        Original
     }
 }

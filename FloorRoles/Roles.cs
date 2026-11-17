@@ -412,6 +412,7 @@ namespace FloorRoles
             int size = Mathf.Max(MinMonitorSize, MonitorTextSize.Value - monitorSizePenalty);
             int contentLines = lines.Count;
             string diagnosis = "測定できませんでした";
+            string padding = "";
             using (var probe = MonitorProbe.Create())
             {
                 if (probe != null)
@@ -427,11 +428,16 @@ namespace FloorRoles
                             break;
                         }
                     }
+                    // モニターは下端そろえなので、文章の下に見えない行を足して上端へ寄せる
+                    // (書き終わると、押し出し用の行は「12 - 文章の行 - この 1 行」だけ残る)
+                    int keep = Mathf.Max(0, 12 - contentLines - 1);
+                    string finalText = keep > 0 ? FlushLines(keep, size) + "\n" + FormatMonitorLines(lines, size) : FormatMonitorLines(lines, size);
+                    padding = probe.TopPadding(finalText, size, MonitorLineHeight.Value, MonitorSpareLines.Value);
                 }
             }
             lastMonitorSize = size;
-            Plugin.Log.LogInfo($"モニター(ページ {page}): 文字 {size}%、{contentLines} 行({diagnosis})");
-            return FlushLines(12, size) + "\n" + FormatMonitorLines(lines, size);
+            Plugin.Log.LogInfo($"モニター(ページ {page}): 文字 {size}%、{contentLines} 行、{(padding.Length > 0 ? "上端寄せ" : "下端のまま")}({diagnosis})");
+            return FlushLines(12, size) + "\n" + FormatMonitorLines(lines, size) + padding;
         }
 
         private const int MinMonitorSize = 30;

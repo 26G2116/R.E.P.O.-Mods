@@ -20,14 +20,14 @@
 ## MOD の一覧
 | MOD | 版 | 内容 | 入れる人 |
 |---|---|---|---|
-| [**FloorRoles**](FloorRoles/Package/README.md) | 0.5.2 | レベルごとに役職を選ぶ。ショップの所持金を個人ごとに分ける | ホストだけ |
+| [**FloorRoles**](FloorRoles/Package/README.md) | 0.5.3 | レベルごとに役職を選ぶ。ショップの所持金を個人ごとに分ける | ホストだけ |
 | [**MonsterTweaks**](MonsterTweaks/Package/README.md) | 0.10.8 | モンスター 27 体を個別に強化する。全モンスター共通の「スタン無効」「移動速度倍率」「出現させる」 | ホストだけ |
 | [**DroneTweaks**](DroneTweaks/Package/README.md) | 0.5.3 | 削除されたドローン・オーブを店に戻し、新しい効果をつける | ホストだけ |
 | [**AIMonsters**](AIMonsters/Package/README.md) | 0.9.0 | Azure OpenAI の AI にローブ・ルーム・クリーンアップクルーを動かさせる。話せる味方のローブを呼べる | ホストだけ |
 | [**LoadProgress**](LoadProgress/Package/README.md) | 0.4.1 | ロードと途中参加の読み込みの進み具合を表示する。止まった途中参加の人にマップを送り直す。入った部屋の様子をログに残す | 見たい人(送り直しはホスト) |
-| [**ArenaGrandPrix**](ArenaGrandPrix/Package/README.md) | 0.1.1 | レースとバトルロワイヤルを交互に遊ぶ大会。順位でポイントをつけ、最後に決勝 | ホストだけ |
-| [**ArenaTweaks**](ArenaTweaks/Package/README.md) | 0.1.0 | 実験版: レースのコースにクラウンを置く・残機で復活・バトルロワイヤルのアイテムを調整 | ホストだけ |
-| [**ArenaRaceFixes**](ArenaRaceFixes/Package/README.md) | 0.1.0 | 11 月 5 日の更新で壊れた REPO_JP さんのアリーナレース用 MOD 2 つを直す | ホストだけ |
+| [**ArenaGrandPrix**](ArenaGrandPrix/Package/README.md) | 0.1.2 | レースとバトルロワイヤルを交互に遊ぶ大会。順位でポイントをつけ、最後に決勝 | ホストだけ |
+| [**ArenaTweaks**](ArenaTweaks/Package/README.md) | 0.1.1 | 実験版: レースのコースにクラウンを置く・残機で復活・バトルロワイヤルのアイテムを調整 | ホストだけ |
+| [**ArenaRaceFixes**](ArenaRaceFixes/Package/README.md) | 0.2.0 | 11 月 5 日の更新で壊れた REPO_JP さんのアリーナレース用 MOD 2 つを直す | ホストだけ |
 | [Translation](Translation/README.md) | — | ほかの作者の MOD の英語を日本語にする翻訳表(XUnity.AutoTranslator 用) | 使いたい人 |
 
 MOD の名前をクリックすると、それぞれの説明書を開けます。
